@@ -1,6 +1,13 @@
 /** Status of a single DNS record check */
 export type DnsRecordStatus = 'pass' | 'fail' | 'missing';
 
+/** A warning or issue found during DNS checking */
+export interface DnsWarning {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+}
+
 /** Result of checking a single DNS record */
 export interface DnsRecordCheck {
   status: DnsRecordStatus;
@@ -8,6 +15,8 @@ export interface DnsRecordCheck {
   expected?: string;
   /** What was actually found */
   actual?: string | string[];
+  /** Raw existing record value */
+  existing?: string;
 }
 
 /** Full result of checking all required DNS records for a domain */
@@ -16,6 +25,8 @@ export interface DnsCheckResult {
   domain: string;
   /** True if all required checks passed */
   allPassed: boolean;
+  /** Warnings and issues found during checking */
+  warnings: DnsWarning[];
   checks: {
     /** Nameserver lookup (informational — identifies DNS provider) */
     ns: DnsRecordCheck;

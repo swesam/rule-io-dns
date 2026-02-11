@@ -13,6 +13,7 @@ vi.mock('node:dns', () => {
     resolveMx: vi.fn(),
     resolveCname: vi.fn(),
     resolveTxt: vi.fn(),
+    resolve4: vi.fn(),
   };
   return {
     default: { promises: mockPromises },
@@ -25,10 +26,13 @@ const mockDns = dns.promises as unknown as {
   resolveMx: ReturnType<typeof vi.fn>;
   resolveCname: ReturnType<typeof vi.fn>;
   resolveTxt: ReturnType<typeof vi.fn>;
+  resolve4: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: no A records exist (prevents CNAME conflict warnings)
+  mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND'));
 });
 
 describe('checkDns', () => {
@@ -301,5 +305,284 @@ describe('checkDns', () => {
     const result = await checkDns('example.com');
     expect(result.allPassed).toBe(false);
     expect(result.checks.dkim.status).toBe('missing');
+  });
+
+  describe('CNAME conflict detection', () => {
+    beforeEach(() => {
+      mockDns.resolveNs.mockResolvedValue(['ns1.dns.com']);
+      mockDns.resolveMx.mockRejectedValue(new Error('ENOTFOUND'));
+    });
+
+    it('warns when A records exist at rm.{domain} without CNAME', async () => {
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveTxt.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolve4.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve(['1.2.3.4']);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'CNAME_CONFLICT_MX_SPF',
+          severity: 'error',
+        })
+      );
+    });
+
+    it('warns when MX records exist at rm.{domain} without CNAME', async () => {
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveTxt.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveMx.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve([{ exchange: 'mail.other.com', priority: 10 }]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'CNAME_CONFLICT_MX_SPF',
+          severity: 'error',
+        })
+      );
+    });
+
+    it('warns when TXT records exist at rm.{domain} without CNAME', async () => {
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve([['v=spf1 include:other.com ~all']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'CNAME_CONFLICT_MX_SPF',
+          severity: 'error',
+        })
+      );
+    });
+
+    it('does not warn when CNAME exists at rm.{domain}', async () => {
+      mockDns.resolveCname.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve([RULE_CNAME_TARGET]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+      mockDns.resolveTxt.mockRejectedValue(new Error('ENOTFOUND'));
+
+      const result = await checkDns('example.com');
+      const conflictWarning = result.warnings.find(
+        (w) => w.code === 'CNAME_CONFLICT_MX_SPF'
+      );
+      expect(conflictWarning).toBeUndefined();
+    });
+  });
+
+  describe('DKIM conflict detection', () => {
+    beforeEach(() => {
+      mockDns.resolveNs.mockResolvedValue(['ns1.dns.com']);
+      mockDns.resolveMx.mockRejectedValue(new Error('ENOTFOUND'));
+    });
+
+    it('warns when TXT records exist at DKIM domain without CNAME', async () => {
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === 'keyse._domainkey.example.com')
+          return Promise.resolve([['v=DKIM1; k=rsa; p=MIGf...']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'CNAME_CONFLICT_DKIM',
+          severity: 'error',
+        })
+      );
+    });
+
+    it('does not warn when CNAME exists at DKIM domain', async () => {
+      mockDns.resolveCname.mockImplementation((domain: string) => {
+        if (domain === 'keyse._domainkey.example.com')
+          return Promise.resolve([RULE_DKIM_TARGET]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+      mockDns.resolveTxt.mockRejectedValue(new Error('ENOTFOUND'));
+
+      const result = await checkDns('example.com');
+      const conflictWarning = result.warnings.find(
+        (w) => w.code === 'CNAME_CONFLICT_DKIM'
+      );
+      expect(conflictWarning).toBeUndefined();
+    });
+  });
+
+  describe('DMARC analysis warnings', () => {
+    beforeEach(() => {
+      mockDns.resolveNs.mockResolvedValue(['ns1.dns.com']);
+      mockDns.resolveMx.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+    });
+
+    it('stores raw existing DMARC record', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=none']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.checks.dmarc.existing).toBe('v=DMARC1; p=none');
+    });
+
+    it('warns on strict SPF alignment (aspf=s)', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=none; aspf=s']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'STRICT_SPF_ALIGNMENT',
+          severity: 'warning',
+        })
+      );
+    });
+
+    it('warns on strict DKIM alignment (adkim=s)', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=none; adkim=s']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'STRICT_DKIM_ALIGNMENT',
+          severity: 'info',
+        })
+      );
+    });
+
+    it('warns on p=reject policy', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=reject']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'EXISTING_DMARC_POLICY',
+          severity: 'info',
+          message: expect.stringContaining('p=reject'),
+        })
+      );
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining('rejected'),
+        })
+      );
+    });
+
+    it('warns on p=quarantine policy', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=quarantine']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'EXISTING_DMARC_POLICY',
+          message: expect.stringContaining('quarantined'),
+        })
+      );
+    });
+
+    it('does not warn on p=none policy', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=none']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      const policyWarning = result.warnings.find(
+        (w) => w.code === 'EXISTING_DMARC_POLICY'
+      );
+      expect(policyWarning).toBeUndefined();
+    });
+
+    it('collects multiple DMARC warnings', async () => {
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([
+            ['v=DMARC1; p=reject; aspf=s; adkim=s'],
+          ]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      const codes = result.warnings.map((w) => w.code);
+      expect(codes).toContain('STRICT_SPF_ALIGNMENT');
+      expect(codes).toContain('STRICT_DKIM_ALIGNMENT');
+      expect(codes).toContain('EXISTING_DMARC_POLICY');
+    });
+  });
+
+  describe('warnings array', () => {
+    it('returns empty warnings when no issues found', async () => {
+      mockDns.resolveNs.mockResolvedValue(['ns1.example.com']);
+      mockDns.resolveMx.mockResolvedValue([
+        { exchange: RULE_MX_HOST, priority: 10 },
+      ]);
+      mockDns.resolveCname.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve([RULE_CNAME_TARGET]);
+        if (domain === 'keyse._domainkey.example.com')
+          return Promise.resolve([RULE_DKIM_TARGET]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([
+            ['v=DMARC1; p=none; rua=mailto:dmarc@rule.se'],
+          ]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('includes warnings in result', async () => {
+      mockDns.resolveNs.mockResolvedValue(['ns1.dns.com']);
+      mockDns.resolveMx.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolve4.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve(['1.2.3.4']);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+      mockDns.resolveTxt.mockImplementation((domain: string) => {
+        if (domain === '_dmarc.example.com')
+          return Promise.resolve([['v=DMARC1; p=reject; aspf=s']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings.length).toBeGreaterThanOrEqual(2);
+      expect(result.warnings.every((w) => w.code && w.severity && w.message)).toBe(true);
+    });
   });
 });

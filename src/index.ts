@@ -1,6 +1,8 @@
 export { checkDns } from './check-dns.js';
 export { getRequiredDnsRecords } from './get-required-records.js';
 export { cleanDomain } from './domain.js';
+export { parseDmarc } from './parse-dmarc.js';
+export type { DmarcRecord } from './parse-dmarc.js';
 export {
   RULE_SENDING_SUBDOMAIN,
   RULE_CNAME_TARGET,
@@ -14,4 +16,5 @@ export type {
   DnsRecordCheck,
   DnsRecordStatus,
   DnsRecord,
+  DnsWarning,
 } from './types.js';
