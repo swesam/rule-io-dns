@@ -1,3 +1,4 @@
+import { cleanDomain } from '../domain.js';
 import type { DnsProvider, ProviderRecord } from '../provider.js';
 
 export interface CloudflareOptions {
@@ -75,13 +76,14 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
   async function getZoneId(): Promise<string> {
     if (resolvedZoneId) return resolvedZoneId;
 
+    const domain = cleanDomain(options.domain!);
     const data = await cfFetch<{ id: string }[]>(
-      `/zones?name=${encodeURIComponent(options.domain!)}`
+      `/zones?name=${encodeURIComponent(domain)}`
     );
 
     if (!data.result.length) {
       throw new Error(
-        `Cloudflare: no zone found for domain "${options.domain}"`
+        `Cloudflare: no zone found for domain "${domain}"`
       );
     }
 

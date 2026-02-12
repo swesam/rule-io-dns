@@ -3,6 +3,10 @@ import { getRequiredDnsRecords } from './get-required-records.js';
 import type { DnsProvider, ProviderRecord } from './provider.js';
 import type { DnsRecord, DnsWarning } from './types.js';
 
+function normalizeDnsValue(value: string): string {
+  return value.toLowerCase().replace(/\.$/, '');
+}
+
 export interface ProvisionResult {
   domain: string;
   created: DnsRecord[];
@@ -44,7 +48,8 @@ export async function provisionDns(
     // Delete conflicting records (wrong type or wrong value at the same name)
     for (const ex of existing) {
       const sameType = ex.type.toUpperCase() === record.type;
-      const sameValue = ex.value.toLowerCase() === record.value.toLowerCase();
+      const sameValue =
+        normalizeDnsValue(ex.value) === normalizeDnsValue(record.value);
       if (!sameType || !sameValue) {
         await provider.deleteRecord(ex.id);
         deleted.push(ex);
@@ -55,7 +60,7 @@ export async function provisionDns(
     const alreadyExists = existing.some(
       (ex) =>
         ex.type.toUpperCase() === record.type &&
-        ex.value.toLowerCase() === record.value.toLowerCase()
+        normalizeDnsValue(ex.value) === normalizeDnsValue(record.value)
     );
 
     if (!alreadyExists) {

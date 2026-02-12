@@ -208,4 +208,29 @@ describe('provisionDns', () => {
     expect(provider.deletedIds).toContain('old-a');
     expect(provider.deletedIds).toContain('old-txt');
   });
+
+  it('treats trailing-dot FQDN values as equivalent', async () => {
+    mockCheckDns.mockResolvedValue(allMissing('example.com'));
+    const existing = new Map<string, ProviderRecord[]>([
+      [
+        'rm.example.com',
+        [
+          {
+            id: 'existing-cname',
+            type: 'CNAME',
+            name: 'rm.example.com',
+            value: `${RULE_CNAME_TARGET}.`,
+          },
+        ],
+      ],
+    ]);
+    const provider = createMockProvider(existing);
+
+    const result = await provisionDns('example.com', provider);
+
+    // Trailing-dot value should match → no delete, no re-create for this record
+    expect(provider.deletedIds).toHaveLength(0);
+    expect(result.created).toHaveLength(2);
+    expect(result.skipped[0]!.name).toBe('rm.example.com');
+  });
 });

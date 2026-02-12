@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { cloudflare } from '../../src/providers/cloudflare.js';
 
 const mockFetch = vi.fn();
@@ -6,6 +6,10 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   mockFetch.mockReset();
   vi.stubGlobal('fetch', mockFetch);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
 });
 
 function cfResponse<T>(result: T) {
@@ -183,6 +187,19 @@ describe('cloudflare', () => {
       const provider = cloudflare({ apiToken: 'tok', domain: 'nonexistent.com' });
       await expect(provider.getRecords('rm.nonexistent.com')).rejects.toThrow(
         'no zone found for domain "nonexistent.com"'
+      );
+    });
+
+    it('normalizes domain input via cleanDomain', async () => {
+      mockFetch.mockResolvedValueOnce(cfResponse([{ id: 'z1' }]));
+      mockFetch.mockResolvedValueOnce(cfResponse([]));
+
+      const provider = cloudflare({ apiToken: 'tok', domain: 'https://www.example.com/' });
+      await provider.getRecords('rm.example.com');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.cloudflare.com/client/v4/zones?name=example.com',
+        expect.anything()
       );
     });
   });
