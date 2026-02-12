@@ -15,6 +15,11 @@
       "types": "./dist/providers/cloudflare.d.ts",
       "import": "./dist/providers/cloudflare.mjs",
       "require": "./dist/providers/cloudflare.js"
+    },
+    "./domeneshop": {
+      "types": "./dist/providers/domeneshop.d.ts",
+      "import": "./dist/providers/domeneshop.mjs",
+      "require": "./dist/providers/domeneshop.js"
     }
   },
   "files": [
