@@ -108,4 +108,71 @@ describe('parseDmarc', () => {
       ruf: ['authfail@rule.se'],
     });
   });
+
+  // Edge cases from Copilot review
+
+  it('handles case-insensitive policy values', () => {
+    expect(parseDmarc('v=DMARC1; p=REJECT')).toEqual({ p: 'reject' });
+    expect(parseDmarc('v=DMARC1; p=Quarantine')).toEqual({
+      p: 'quarantine',
+    });
+    expect(parseDmarc('v=DMARC1; p=NONE')).toEqual({ p: 'none' });
+  });
+
+  it('handles case-insensitive sp values', () => {
+    const result = parseDmarc('v=DMARC1; p=none; sp=REJECT');
+    expect(result?.sp).toBe('reject');
+  });
+
+  it('handles case-insensitive alignment modes', () => {
+    const result = parseDmarc('v=DMARC1; p=none; aspf=S; adkim=R');
+    expect(result?.aspf).toBe('s');
+    expect(result?.adkim).toBe('r');
+  });
+
+  it('ignores non-mailto URIs in rua', () => {
+    const result = parseDmarc(
+      'v=DMARC1; p=none; rua=http://example.com'
+    );
+    expect(result?.rua).toBeUndefined();
+  });
+
+  it('ignores non-mailto URIs in ruf', () => {
+    const result = parseDmarc(
+      'v=DMARC1; p=none; ruf=https://example.com'
+    );
+    expect(result?.ruf).toBeUndefined();
+  });
+
+  it('filters non-mailto URIs but keeps valid ones', () => {
+    const result = parseDmarc(
+      'v=DMARC1; p=none; rua=http://bad.com,mailto:good@example.com'
+    );
+    expect(result?.rua).toEqual(['good@example.com']);
+  });
+
+  it('ignores invalid pct values (non-numeric)', () => {
+    const result = parseDmarc('v=DMARC1; p=none; pct=abc');
+    expect(result?.pct).toBeUndefined();
+  });
+
+  it('ignores pct values below 0', () => {
+    const result = parseDmarc('v=DMARC1; p=none; pct=-10');
+    expect(result?.pct).toBeUndefined();
+  });
+
+  it('ignores pct values above 100', () => {
+    const result = parseDmarc('v=DMARC1; p=none; pct=150');
+    expect(result?.pct).toBeUndefined();
+  });
+
+  it('accepts pct=0', () => {
+    const result = parseDmarc('v=DMARC1; p=none; pct=0');
+    expect(result?.pct).toBe(0);
+  });
+
+  it('uses last value when duplicate tags exist', () => {
+    const result = parseDmarc('v=DMARC1; p=none; p=reject');
+    expect(result?.p).toBe('reject');
+  });
 });

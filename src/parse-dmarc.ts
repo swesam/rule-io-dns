@@ -29,42 +29,48 @@ export function parseDmarc(raw: string): DmarcRecord | null {
     tags.set(key, value);
   }
 
-  const p = tags.get('p');
+  const p = tags.get('p')?.toLowerCase();
   if (p !== 'none' && p !== 'quarantine' && p !== 'reject') {
     return null;
   }
 
   const result: DmarcRecord = { p };
 
-  const sp = tags.get('sp');
+  const sp = tags.get('sp')?.toLowerCase();
   if (sp === 'none' || sp === 'quarantine' || sp === 'reject') {
     result.sp = sp;
   }
 
-  const aspf = tags.get('aspf');
+  const aspf = tags.get('aspf')?.toLowerCase();
   if (aspf === 'r' || aspf === 's') {
     result.aspf = aspf;
   }
 
-  const adkim = tags.get('adkim');
+  const adkim = tags.get('adkim')?.toLowerCase();
   if (adkim === 'r' || adkim === 's') {
     result.adkim = adkim;
   }
 
   const rua = tags.get('rua');
   if (rua) {
-    result.rua = parseMailtoList(rua);
+    const list = parseMailtoList(rua);
+    if (list.length > 0) {
+      result.rua = list;
+    }
   }
 
   const ruf = tags.get('ruf');
   if (ruf) {
-    result.ruf = parseMailtoList(ruf);
+    const list = parseMailtoList(ruf);
+    if (list.length > 0) {
+      result.ruf = list;
+    }
   }
 
   const pct = tags.get('pct');
   if (pct !== undefined) {
     const num = Number(pct);
-    if (!Number.isNaN(num)) {
+    if (!Number.isNaN(num) && num >= 0 && num <= 100) {
       result.pct = num;
     }
   }

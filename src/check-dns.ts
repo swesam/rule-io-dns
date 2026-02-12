@@ -26,16 +26,18 @@ export async function checkDns(input: string): Promise<DnsCheckResult> {
   const domain = cleanDomain(input);
   const sendingDomain = `${RULE_SENDING_SUBDOMAIN}.${domain}`;
   const dkimDomain = `${RULE_DKIM_SELECTOR}._domainkey.${domain}`;
-  const dmarcDomain = `_dmarc.${domain}`;
+  const subdomainDmarcDomain = `_dmarc.${RULE_SENDING_SUBDOMAIN}.${domain}`;
+  const orgDmarcDomain = `_dmarc.${domain}`;
 
   const warnings: DnsWarning[] = [];
 
-  const [ns, mx, spf, dkim, dmarc] = await Promise.all([
+  const [ns, mx, spf, dkim, dmarc, orgDmarc] = await Promise.all([
     checkNs(domain),
     checkMx(sendingDomain),
     checkSpf(sendingDomain),
     checkDkim(dkimDomain),
-    checkDmarc(dmarcDomain),
+    checkDmarc(subdomainDmarcDomain),
+    checkDmarc(orgDmarcDomain),
   ]);
 
   // Conflict detection and DMARC analysis (parallel where possible)
@@ -43,7 +45,7 @@ export async function checkDns(input: string): Promise<DnsCheckResult> {
     detectCnameConflict(sendingDomain, warnings),
     detectDkimConflict(dkimDomain, warnings),
   ]);
-  analyzeDmarc(dmarc, sendingDomain, warnings);
+  analyzeDmarc(orgDmarc, sendingDomain, warnings);
 
   const allPassed =
     mx.status === 'pass' &&
@@ -198,6 +200,7 @@ async function detectCnameConflict(
 
   const checks = await Promise.all([
     safeHasRecords(() => resolver.resolve4(sendingDomain)),
+    safeHasRecords(() => resolver.resolve6(sendingDomain)),
     safeHasRecords(() => resolver.resolveTxt(sendingDomain)),
     safeHasRecords(() => resolver.resolveMx(sendingDomain)),
   ]);

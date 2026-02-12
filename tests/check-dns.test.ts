@@ -14,6 +14,7 @@ vi.mock('node:dns', () => {
     resolveCname: vi.fn(),
     resolveTxt: vi.fn(),
     resolve4: vi.fn(),
+    resolve6: vi.fn(),
   };
   return {
     default: { promises: mockPromises },
@@ -27,12 +28,14 @@ const mockDns = dns.promises as unknown as {
   resolveCname: ReturnType<typeof vi.fn>;
   resolveTxt: ReturnType<typeof vi.fn>;
   resolve4: ReturnType<typeof vi.fn>;
+  resolve6: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: no A records exist (prevents CNAME conflict warnings)
+  // Default: no A/AAAA records exist (prevents CNAME conflict warnings)
   mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND'));
+  mockDns.resolve6.mockRejectedValue(new Error('ENOTFOUND'));
 });
 
 describe('checkDns', () => {
@@ -50,7 +53,7 @@ describe('checkDns', () => {
       return Promise.reject(new Error('ENOTFOUND'));
     });
     mockDns.resolveTxt.mockImplementation((domain: string) => {
-      if (domain === '_dmarc.example.com')
+      if (domain === '_dmarc.rm.example.com')
         return Promise.resolve([
           [
             'v=DMARC1; p=none; rua=mailto:dmarc@rule.se; ruf=mailto:authfail@rule.se',
@@ -255,9 +258,9 @@ describe('checkDns', () => {
       mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
     });
 
-    it('returns pass when DMARC record exists', async () => {
+    it('returns pass when DMARC record exists at subdomain', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
-        if (domain === '_dmarc.example.com')
+        if (domain === '_dmarc.rm.example.com')
           return Promise.resolve([['v=DMARC1; p=reject']]);
         return Promise.reject(new Error('ENOTFOUND'));
       });
@@ -275,7 +278,7 @@ describe('checkDns', () => {
 
     it('returns missing when TXT exists but no DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
-        if (domain === '_dmarc.example.com')
+        if (domain === '_dmarc.rm.example.com')
           return Promise.resolve([['some-other-txt-record']]);
         return Promise.reject(new Error('ENOTFOUND'));
       });
@@ -297,7 +300,7 @@ describe('checkDns', () => {
       return Promise.reject(new Error('ENOTFOUND'));
     });
     mockDns.resolveTxt.mockImplementation((domain: string) => {
-      if (domain === '_dmarc.example.com')
+      if (domain === '_dmarc.rm.example.com')
         return Promise.resolve([['v=DMARC1; p=none']]);
       return Promise.reject(new Error('ENOTFOUND'));
     });
@@ -354,6 +357,24 @@ describe('checkDns', () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === 'rm.example.com')
           return Promise.resolve([['v=spf1 include:other.com ~all']]);
+        return Promise.reject(new Error('ENOTFOUND'));
+      });
+
+      const result = await checkDns('example.com');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'CNAME_CONFLICT_MX_SPF',
+          severity: 'error',
+        })
+      );
+    });
+
+    it('warns when AAAA records exist at rm.{domain} without CNAME', async () => {
+      mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolveTxt.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolve6.mockImplementation((domain: string) => {
+        if (domain === 'rm.example.com')
+          return Promise.resolve(['2001:db8::1']);
         return Promise.reject(new Error('ENOTFOUND'));
       });
 
@@ -428,9 +449,9 @@ describe('checkDns', () => {
       mockDns.resolveCname.mockRejectedValue(new Error('ENOTFOUND'));
     });
 
-    it('stores raw existing DMARC record', async () => {
+    it('stores raw existing DMARC record from subdomain', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
-        if (domain === '_dmarc.example.com')
+        if (domain === '_dmarc.rm.example.com')
           return Promise.resolve([['v=DMARC1; p=none']]);
         return Promise.reject(new Error('ENOTFOUND'));
       });
@@ -439,7 +460,7 @@ describe('checkDns', () => {
       expect(result.checks.dmarc.existing).toBe('v=DMARC1; p=none');
     });
 
-    it('warns on strict SPF alignment (aspf=s)', async () => {
+    it('warns on strict SPF alignment (aspf=s) from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([['v=DMARC1; p=none; aspf=s']]);
@@ -455,7 +476,7 @@ describe('checkDns', () => {
       );
     });
 
-    it('warns on strict DKIM alignment (adkim=s)', async () => {
+    it('warns on strict DKIM alignment (adkim=s) from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([['v=DMARC1; p=none; adkim=s']]);
@@ -471,7 +492,7 @@ describe('checkDns', () => {
       );
     });
 
-    it('warns on p=reject policy', async () => {
+    it('warns on p=reject policy from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([['v=DMARC1; p=reject']]);
@@ -493,7 +514,7 @@ describe('checkDns', () => {
       );
     });
 
-    it('warns on p=quarantine policy', async () => {
+    it('warns on p=quarantine policy from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([['v=DMARC1; p=quarantine']]);
@@ -509,7 +530,7 @@ describe('checkDns', () => {
       );
     });
 
-    it('does not warn on p=none policy', async () => {
+    it('does not warn on p=none policy from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([['v=DMARC1; p=none']]);
@@ -523,7 +544,7 @@ describe('checkDns', () => {
       expect(policyWarning).toBeUndefined();
     });
 
-    it('collects multiple DMARC warnings', async () => {
+    it('collects multiple DMARC warnings from org DMARC', async () => {
       mockDns.resolveTxt.mockImplementation((domain: string) => {
         if (domain === '_dmarc.example.com')
           return Promise.resolve([
@@ -554,7 +575,7 @@ describe('checkDns', () => {
         return Promise.reject(new Error('ENOTFOUND'));
       });
       mockDns.resolveTxt.mockImplementation((domain: string) => {
-        if (domain === '_dmarc.example.com')
+        if (domain === '_dmarc.rm.example.com')
           return Promise.resolve([
             ['v=DMARC1; p=none; rua=mailto:dmarc@rule.se'],
           ]);
@@ -582,7 +603,7 @@ describe('checkDns', () => {
 
       const result = await checkDns('example.com');
       expect(result.warnings.length).toBeGreaterThanOrEqual(2);
-      expect(result.warnings.every((w) => w.code && w.severity && w.message)).toBe(true);
+      expect(result.warnings.every((w: { code: string; severity: string; message: string }) => w.code && w.severity && w.message)).toBe(true);
     });
   });
 });
