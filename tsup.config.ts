@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/providers/cloudflare.ts'],
+  entry: ['src/index.ts', 'src/providers/cloudflare.ts', 'src/providers/loopia.ts'],
   format: ['cjs', 'esm'],
   dts: true,
   splitting: false,
