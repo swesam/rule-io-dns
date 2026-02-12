@@ -26,7 +26,7 @@ describe('getRequiredDnsRecords', () => {
     });
     expect(records[2]).toEqual({
       type: 'TXT',
-      name: '_dmarc.example.com',
+      name: '_dmarc.rm.example.com',
       value: RULE_DMARC_POLICY,
       purpose: 'dmarc',
     });
@@ -41,6 +41,7 @@ describe('getRequiredDnsRecords', () => {
     const checkResult: DnsCheckResult = {
       domain: 'example.com',
       allPassed: true,
+      warnings: [],
       checks: {
         ns: { status: 'pass' },
         mx: { status: 'pass' },
@@ -58,6 +59,7 @@ describe('getRequiredDnsRecords', () => {
     const checkResult: DnsCheckResult = {
       domain: 'example.com',
       allPassed: false,
+      warnings: [],
       checks: {
         ns: { status: 'pass' },
         mx: { status: 'pass' },
@@ -76,6 +78,7 @@ describe('getRequiredDnsRecords', () => {
     const checkResult: DnsCheckResult = {
       domain: 'example.com',
       allPassed: false,
+      warnings: [],
       checks: {
         ns: { status: 'pass' },
         mx: { status: 'missing' },
@@ -94,6 +97,7 @@ describe('getRequiredDnsRecords', () => {
     const checkResult: DnsCheckResult = {
       domain: 'example.com',
       allPassed: false,
+      warnings: [],
       checks: {
         ns: { status: 'missing' },
         mx: { status: 'missing' },
@@ -111,6 +115,7 @@ describe('getRequiredDnsRecords', () => {
     const checkResult: DnsCheckResult = {
       domain: 'example.com',
       allPassed: false,
+      warnings: [],
       checks: {
         ns: { status: 'pass' },
         mx: { status: 'pass' },

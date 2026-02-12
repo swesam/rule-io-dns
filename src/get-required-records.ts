@@ -37,7 +37,7 @@ export function getRequiredDnsRecords(
     },
     {
       type: 'TXT',
-      name: `_dmarc.${domain}`,
+      name: `_dmarc.${RULE_SENDING_SUBDOMAIN}.${domain}`,
       value: RULE_DMARC_POLICY,
       purpose: 'dmarc',
     },

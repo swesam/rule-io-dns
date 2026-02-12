@@ -7,7 +7,8 @@ import {
   RULE_SENDING_SUBDOMAIN,
 } from './constants.js';
 import { cleanDomain } from './domain.js';
-import type { DnsCheckResult, DnsRecordCheck } from './types.js';
+import { parseDmarc } from './parse-dmarc.js';
+import type { DnsCheckResult, DnsRecordCheck, DnsWarning } from './types.js';
 
 const resolver = dns.promises;
 
@@ -25,15 +26,26 @@ export async function checkDns(input: string): Promise<DnsCheckResult> {
   const domain = cleanDomain(input);
   const sendingDomain = `${RULE_SENDING_SUBDOMAIN}.${domain}`;
   const dkimDomain = `${RULE_DKIM_SELECTOR}._domainkey.${domain}`;
-  const dmarcDomain = `_dmarc.${domain}`;
+  const subdomainDmarcDomain = `_dmarc.${RULE_SENDING_SUBDOMAIN}.${domain}`;
+  const orgDmarcDomain = `_dmarc.${domain}`;
 
-  const [ns, mx, spf, dkim, dmarc] = await Promise.all([
+  const warnings: DnsWarning[] = [];
+
+  const [ns, mx, spf, dkim, dmarc, orgDmarc] = await Promise.all([
     checkNs(domain),
     checkMx(sendingDomain),
     checkSpf(sendingDomain),
     checkDkim(dkimDomain),
-    checkDmarc(dmarcDomain),
+    checkDmarc(subdomainDmarcDomain),
+    checkDmarc(orgDmarcDomain),
   ]);
+
+  // Conflict detection and DMARC analysis (parallel where possible)
+  await Promise.all([
+    detectCnameConflict(sendingDomain, warnings),
+    detectDkimConflict(dkimDomain, warnings),
+  ]);
+  analyzeDmarc(orgDmarc, sendingDomain, warnings);
 
   const allPassed =
     mx.status === 'pass' &&
@@ -44,6 +56,7 @@ export async function checkDns(input: string): Promise<DnsCheckResult> {
   return {
     domain,
     allPassed,
+    warnings,
     checks: { ns, mx, spf, dkim, dmarc },
   };
 }
@@ -157,10 +170,118 @@ async function checkDmarc(dmarcDomain: string): Promise<DnsRecordCheck> {
     const flat = txtRecords.map((chunks) => chunks.join(''));
     const dmarcRecord = flat.find((r) => r.startsWith('v=DMARC1'));
     if (dmarcRecord) {
-      return { status: 'pass', expected: 'v=DMARC1', actual: dmarcRecord };
+      return {
+        status: 'pass',
+        expected: 'v=DMARC1',
+        actual: dmarcRecord,
+        existing: dmarcRecord,
+      };
     }
     return { status: 'missing', expected: 'v=DMARC1' };
   } catch {
     return { status: 'missing', expected: 'v=DMARC1' };
+  }
+}
+
+/**
+ * Detect CNAME conflicts at the sending subdomain.
+ * A CNAME cannot coexist with other record types per RFC 1034.
+ */
+async function detectCnameConflict(
+  sendingDomain: string,
+  warnings: DnsWarning[]
+): Promise<void> {
+  try {
+    await resolver.resolveCname(sendingDomain);
+    return; // CNAME already exists — no conflict
+  } catch {
+    // No CNAME — check for conflicting records
+  }
+
+  const checks = await Promise.all([
+    safeHasRecords(() => resolver.resolve4(sendingDomain)),
+    safeHasRecords(() => resolver.resolve6(sendingDomain)),
+    safeHasRecords(() => resolver.resolveTxt(sendingDomain)),
+    safeHasRecords(() => resolver.resolveMx(sendingDomain)),
+  ]);
+
+  if (checks.some(Boolean)) {
+    warnings.push({
+      code: 'CNAME_CONFLICT_MX_SPF',
+      severity: 'error',
+      message: `Existing records at ${sendingDomain} must be removed before adding the CNAME. A CNAME cannot coexist with other record types (RFC 1034).`,
+    });
+  }
+}
+
+/**
+ * Detect CNAME conflicts at the DKIM domain.
+ */
+async function detectDkimConflict(
+  dkimDomain: string,
+  warnings: DnsWarning[]
+): Promise<void> {
+  try {
+    await resolver.resolveCname(dkimDomain);
+    return; // CNAME already exists — no conflict
+  } catch {
+    // No CNAME — check for conflicting records
+  }
+
+  if (await safeHasRecords(() => resolver.resolveTxt(dkimDomain))) {
+    warnings.push({
+      code: 'CNAME_CONFLICT_DKIM',
+      severity: 'error',
+      message: `Existing TXT records at ${dkimDomain} must be removed before adding the CNAME.`,
+    });
+  }
+}
+
+async function safeHasRecords<T>(fn: () => Promise<T[]>): Promise<boolean> {
+  try {
+    const records = await fn();
+    return records.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Analyze an existing DMARC record for strict alignment and strong policies.
+ */
+function analyzeDmarc(
+  dmarcCheck: DnsRecordCheck,
+  sendingDomain: string,
+  warnings: DnsWarning[]
+): void {
+  if (!dmarcCheck.existing) return;
+
+  const parsed = parseDmarc(dmarcCheck.existing);
+  if (!parsed) return;
+
+  if (parsed.aspf === 's') {
+    warnings.push({
+      code: 'STRICT_SPF_ALIGNMENT',
+      severity: 'warning',
+      message: `Existing DMARC policy uses strict SPF alignment (aspf=s). SPF alignment will fail for subdomain sending from ${sendingDomain}. DKIM alignment must pass for emails to be delivered.`,
+    });
+  }
+
+  if (parsed.adkim === 's') {
+    warnings.push({
+      code: 'STRICT_DKIM_ALIGNMENT',
+      severity: 'info',
+      message:
+        'Existing DMARC policy uses strict DKIM alignment (adkim=s). Ensure the DKIM signing domain exactly matches the From header domain.',
+    });
+  }
+
+  if (parsed.p === 'reject' || parsed.p === 'quarantine') {
+    const action = parsed.p === 'reject' ? 'rejected' : 'quarantined';
+    warnings.push({
+      code: 'EXISTING_DMARC_POLICY',
+      severity: 'info',
+      message: `Domain has an existing DMARC policy of p=${parsed.p}. Ensure SPF and DKIM are correctly configured before sending, or emails may be ${action}.`,
+    });
   }
 }
