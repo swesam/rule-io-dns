@@ -66,6 +66,15 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function unescapeXml(s: string): string {
+  return s
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
 function extractFault(xml: string): string | null {
   const faultMatch = xml.match(/<fault>([\s\S]*?)<\/fault>/);
   if (!faultMatch) return null;
@@ -114,7 +123,7 @@ function parseValue(xml: string): unknown {
     const memberRegex = /<member>\s*<name>([\s\S]*?)<\/name>\s*([\s\S]*?)\s*<\/member>/g;
     let m;
     while ((m = memberRegex.exec(inner)) !== null) {
-      const name = m[1]!;
+      const name = unescapeXml(m[1]!);
       // Extract the <value>...</value> from the member body
       const valueMatch = m[2]!.match(/<value>([\s\S]*)<\/value>/);
       if (valueMatch) {
@@ -125,7 +134,7 @@ function parseValue(xml: string): unknown {
   }
 
   const strMatch = inner.match(/^<string>([\s\S]*?)<\/string>$/);
-  if (strMatch) return strMatch[1]!;
+  if (strMatch) return unescapeXml(strMatch[1]!);
 
   const intMatch = inner.match(/^<(?:int|i4)>([\s\S]*?)<\/(?:int|i4)>$/);
   if (intMatch) return parseInt(intMatch[1]!, 10);

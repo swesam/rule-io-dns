@@ -58,7 +58,7 @@ describe('gandi', () => {
       const records = await provider.getRecords('rm.example.com');
 
       expect(records).toEqual([
-        { id: 'rm/CNAME', type: 'CNAME', name: 'rm.example.com', value: 'to.rulemailer.se.' },
+        { id: 'rm/CNAME/to.rulemailer.se.', type: 'CNAME', name: 'rm.example.com', value: 'to.rulemailer.se.' },
       ]);
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -87,7 +87,7 @@ describe('gandi', () => {
       const records = await provider.getRecords('example.com');
 
       expect(records).toEqual([
-        { id: '@/MX', type: 'MX', name: 'example.com', value: '10 mail.example.com.' },
+        { id: '@/MX/10 mail.example.com.', type: 'MX', name: 'example.com', value: '10 mail.example.com.' },
       ]);
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe('gandi', () => {
       );
     });
 
-    it('flattens rrsets with multiple values', async () => {
+    it('flattens rrsets with multiple values into unique IDs', async () => {
       mockFetch.mockResolvedValueOnce(
         gandiOk([
           {
@@ -112,6 +112,8 @@ describe('gandi', () => {
       const records = await provider.getRecords('example.com');
 
       expect(records).toHaveLength(2);
+      expect(records[0]!.id).toBe('@/TXT/"v=spf1 ~all"');
+      expect(records[1]!.id).toBe('@/TXT/"verification=abc"');
     });
 
     it('returns empty array on 404', async () => {
@@ -145,7 +147,7 @@ describe('gandi', () => {
       });
 
       expect(result).toEqual({
-        id: 'rm/CNAME',
+        id: 'rm/CNAME/to.rulemailer.se.',
         type: 'CNAME',
         name: 'rm.example.com',
         value: 'to.rulemailer.se.',
@@ -167,15 +169,60 @@ describe('gandi', () => {
   });
 
   describe('deleteRecord', () => {
-    it('sends DELETE with name and type from composite id', async () => {
+    it('deletes rrset when it is the only value', async () => {
+      // GET rrset returns single value
+      mockFetch.mockResolvedValueOnce(
+        gandiOk({
+          rrset_name: 'rm',
+          rrset_type: 'CNAME',
+          rrset_ttl: 300,
+          rrset_values: ['to.rulemailer.se.'],
+        })
+      );
+      // DELETE rrset
       mockFetch.mockResolvedValueOnce(gandiOk(null));
 
       const provider = gandi({ apiToken: 'tok', domain: 'example.com' });
-      await provider.deleteRecord('rm/CNAME');
+      await provider.deleteRecord('rm/CNAME/to.rulemailer.se.');
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.gandi.net/v5/livedns/domains/example.com/records/rm/CNAME',
+      // First call: GET rrset to check values
+      expect(mockFetch.mock.calls[0]![0]).toBe(
+        'https://api.gandi.net/v5/livedns/domains/example.com/records/rm/CNAME'
+      );
+      // Second call: DELETE the entire rrset
+      expect(mockFetch.mock.calls[1]![0]).toBe(
+        'https://api.gandi.net/v5/livedns/domains/example.com/records/rm/CNAME'
+      );
+      expect(mockFetch.mock.calls[1]![1]).toEqual(
         expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
+    it('updates rrset when other values remain', async () => {
+      // GET rrset returns two values
+      mockFetch.mockResolvedValueOnce(
+        gandiOk({
+          rrset_name: '@',
+          rrset_type: 'TXT',
+          rrset_ttl: 300,
+          rrset_values: ['"v=spf1 ~all"', '"verification=abc"'],
+        })
+      );
+      // PUT updated rrset
+      mockFetch.mockResolvedValueOnce(gandiOk(null));
+
+      const provider = gandi({ apiToken: 'tok', domain: 'example.com' });
+      await provider.deleteRecord('@/TXT/"v=spf1 ~all"');
+
+      // Second call: PUT with remaining value
+      expect(mockFetch.mock.calls[1]![1]).toEqual(
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({
+            rrset_ttl: 300,
+            rrset_values: ['"verification=abc"'],
+          }),
+        })
       );
     });
 

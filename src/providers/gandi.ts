@@ -8,8 +8,6 @@ export interface GandiOptions {
   apiToken: string;
   /** The zone (domain) name, e.g. "example.com" */
   domain: string;
-  /** Optional Gandi organization sharing ID */
-  sharingId?: string;
 }
 
 interface GandiRrset {
@@ -140,7 +138,7 @@ export function gandi(options: GandiOptions): DnsProvider {
       for (const rrset of rrsets) {
         for (const value of rrset.rrset_values) {
           records.push({
-            id: `${rrset.rrset_name}/${rrset.rrset_type}`,
+            id: `${rrset.rrset_name}/${rrset.rrset_type}/${value}`,
             type: rrset.rrset_type,
             name: toFqdn(rrset.rrset_name, domain),
             value,
@@ -172,7 +170,7 @@ export function gandi(options: GandiOptions): DnsProvider {
       );
 
       return {
-        id: `${relative}/${record.type}`,
+        id: `${relative}/${record.type}/${record.value}`,
         type: record.type,
         name: toFqdn(relative, domain),
         value: record.value,
@@ -180,15 +178,48 @@ export function gandi(options: GandiOptions): DnsProvider {
     },
 
     async deleteRecord(id: string): Promise<void> {
-      const [name, type] = id.split('/');
-      if (!name || !type) {
+      const firstSlash = id.indexOf('/');
+      const secondSlash = id.indexOf('/', firstSlash + 1);
+      if (firstSlash === -1 || secondSlash === -1) {
         throw new Error(`Gandi: invalid record id "${id}"`);
       }
 
-      await apiFetch<unknown>(
-        `/livedns/domains/${encodeURIComponent(domain)}/records/${encodeURIComponent(name)}/${encodeURIComponent(type)}`,
-        { method: 'DELETE' }
-      );
+      const name = id.slice(0, firstSlash);
+      const type = id.slice(firstSlash + 1, secondSlash);
+      const value = id.slice(secondSlash + 1);
+
+      if (!name || !type || !value) {
+        throw new Error(`Gandi: invalid record id "${id}"`);
+      }
+
+      const rrsetPath = `/livedns/domains/${encodeURIComponent(domain)}/records/${encodeURIComponent(name)}/${encodeURIComponent(type)}`;
+
+      // Fetch the current rrset to check for other values
+      let rrset: GandiRrset;
+      try {
+        rrset = await apiFetch<GandiRrset>(rrsetPath);
+      } catch (err) {
+        if (err instanceof GandiApiError && err.status === 404) {
+          return; // Already gone
+        }
+        throw err;
+      }
+
+      const remaining = rrset.rrset_values.filter((v) => v !== value);
+
+      if (remaining.length === 0) {
+        // No values left — delete the entire rrset
+        await apiFetch<unknown>(rrsetPath, { method: 'DELETE' });
+      } else {
+        // Update the rrset with the remaining values
+        await apiFetch<unknown>(rrsetPath, {
+          method: 'PUT',
+          body: JSON.stringify({
+            rrset_ttl: rrset.rrset_ttl,
+            rrset_values: remaining,
+          }),
+        });
+      }
     },
   };
 }
