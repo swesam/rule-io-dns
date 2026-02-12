@@ -79,13 +79,13 @@ function extractFault(xml: string): string | null {
   const faultMatch = xml.match(/<fault>([\s\S]*?)<\/fault>/);
   if (!faultMatch) return null;
   const codeMatch = faultMatch[1]!.match(
-    /<name>faultCode<\/name>\s*<value><int>(\d+)<\/int><\/value>/
+    /<name>faultCode<\/name>\s*<value><(?:int|i4)>(\d+)<\/(?:int|i4)><\/value>/
   );
   const stringMatch = faultMatch[1]!.match(
     /<name>faultString<\/name>\s*<value><string>([\s\S]*?)<\/string><\/value>/
   );
   const code = codeMatch ? codeMatch[1] : 'unknown';
-  const msg = stringMatch ? stringMatch[1] : 'unknown error';
+  const msg = stringMatch ? unescapeXml(stringMatch[1]!) : 'unknown error';
   return `${code}: ${msg}`;
 }
 

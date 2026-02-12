@@ -1,3 +1,4 @@
+import { cleanDomain } from '../domain.js';
 import type { DnsProvider, ProviderRecord } from '../provider.js';
 
 export interface GandiDomain {
@@ -104,14 +105,16 @@ export async function listGandiDomains(
  * Uses Gandi LiveDNS API v5 with native `fetch` (Node 18+).
  */
 export function gandi(options: GandiOptions): DnsProvider {
-  const { apiToken, domain } = options;
+  const { apiToken } = options;
 
   if (!apiToken) {
     throw new Error('Gandi: apiToken is required');
   }
-  if (!domain) {
+  if (!options.domain) {
     throw new Error('Gandi: domain is required');
   }
+
+  const domain = cleanDomain(options.domain);
 
   function apiFetch<T>(path: string, init?: RequestInit) {
     return gandiFetch<T>(apiToken, path, init);
@@ -205,7 +208,15 @@ export function gandi(options: GandiOptions): DnsProvider {
         throw err;
       }
 
-      const remaining = rrset.rrset_values.filter((v) => v !== value);
+      const normalizeValue = (v: string): string => {
+        let n = v.toLowerCase();
+        while (n.endsWith('.')) n = n.slice(0, -1);
+        return n;
+      };
+      const normalizedValue = normalizeValue(value);
+      const remaining = rrset.rrset_values.filter(
+        (v) => normalizeValue(v) !== normalizedValue
+      );
 
       if (remaining.length === 0) {
         // No values left — delete the entire rrset

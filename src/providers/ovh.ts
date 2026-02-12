@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { cleanDomain } from '../domain.js';
 import type { DnsProvider, ProviderRecord } from '../provider.js';
 
 export interface OvhOptions {
@@ -72,12 +73,14 @@ const TIME_CACHE_TTL = 30_000;
  * Requires application key, application secret, and consumer key.
  */
 export function ovh(options: OvhOptions): DnsProvider {
-  const { appKey, appSecret, consumerKey, zoneName } = options;
+  const { appKey, appSecret, consumerKey } = options;
 
   if (!appKey) throw new Error('OVH: appKey is required');
   if (!appSecret) throw new Error('OVH: appSecret is required');
   if (!consumerKey) throw new Error('OVH: consumerKey is required');
-  if (!zoneName) throw new Error('OVH: zoneName is required');
+  if (!options.zoneName) throw new Error('OVH: zoneName is required');
+
+  const zoneName = cleanDomain(options.zoneName);
 
   let cachedTimestamp: number | null = null;
   let cacheExpiry = 0;
