@@ -12,10 +12,10 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function cfResponse<T>(result: T) {
+function cfResponse<T>(result: T, resultInfo?: { page: number; total_pages: number }) {
   return {
     ok: true,
-    json: () => Promise.resolve({ success: true, errors: [], result }),
+    json: () => Promise.resolve({ success: true, errors: [], result, result_info: resultInfo }),
     text: () => Promise.resolve(''),
   };
 }
@@ -252,8 +252,8 @@ describe('listCloudflareZones', () => {
     }));
     const page2 = [{ id: 'z50', name: 'last.com' }];
 
-    mockFetch.mockResolvedValueOnce(cfResponse(page1));
-    mockFetch.mockResolvedValueOnce(cfResponse(page2));
+    mockFetch.mockResolvedValueOnce(cfResponse(page1, { page: 1, total_pages: 2 }));
+    mockFetch.mockResolvedValueOnce(cfResponse(page2, { page: 2, total_pages: 2 }));
 
     const zones = await listCloudflareZones('tok');
 

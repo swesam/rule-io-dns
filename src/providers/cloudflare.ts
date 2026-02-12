@@ -18,6 +18,7 @@ interface CloudflareApiResponse<T> {
   success: boolean;
   errors: { code: number; message: string }[];
   result: T;
+  result_info?: { page: number; total_pages: number };
 }
 
 interface CloudflareDnsRecord {
@@ -84,7 +85,8 @@ export async function listCloudflareZones(
       zones.push({ id: z.id, name: z.name });
     }
 
-    if (data.result.length < 50) break;
+    const info = data.result_info;
+    if (!info || page >= info.total_pages) break;
     page++;
   }
 
