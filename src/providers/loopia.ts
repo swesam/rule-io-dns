@@ -208,9 +208,13 @@ function decodeId(id: string): { subdomain: string; recordId: number } {
   if (sep === -1) {
     throw new Error(`Loopia: invalid record id "${id}"`);
   }
+  const recordId = parseInt(id.slice(sep + 1), 10);
+  if (!Number.isFinite(recordId)) {
+    throw new Error(`Loopia: invalid record id "${id}"`);
+  }
   return {
     subdomain: id.slice(0, sep),
-    recordId: parseInt(id.slice(sep + 1), 10),
+    recordId,
   };
 }
 
@@ -282,10 +286,16 @@ export function loopia(options: LoopiaOptions): DnsProvider {
       }
 
       // Loopia does not return the created record, so fetch to find it
-      const records = (await call('getZoneRecords', [
+      const recordsResult = await call('getZoneRecords', [
         domain,
         subdomain,
-      ])) as LoopiaRecord[];
+      ]);
+
+      if (typeof recordsResult === 'string') {
+        throw new Error(`Loopia: getZoneRecords failed: ${recordsResult}`);
+      }
+
+      const records = recordsResult as LoopiaRecord[];
 
       const created = records.find(
         (r) => r.type === record.type && r.rdata === record.value

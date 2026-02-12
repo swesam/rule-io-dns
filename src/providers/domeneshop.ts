@@ -32,7 +32,10 @@ async function dsFetch<T>(
   init?: RequestInit
 ): Promise<T> {
   const headers = new Headers(init?.headers);
-  headers.set('Authorization', `Basic ${btoa(token + ':' + secret)}`);
+  headers.set(
+    'Authorization',
+    `Basic ${Buffer.from(`${token}:${secret}`, 'utf8').toString('base64')}`
+  );
   headers.set('Content-Type', 'application/json');
 
   const res = await fetch(`${DS_API}${path}`, {

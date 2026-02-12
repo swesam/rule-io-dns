@@ -41,48 +41,6 @@ async function getServerTime(): Promise<number> {
   return (await res.json()) as number;
 }
 
-async function ovhFetch<T>(
-  options: OvhOptions,
-  method: string,
-  path: string,
-  body?: unknown
-): Promise<T> {
-  const url = `${OVH_API}${path}`;
-  const bodyStr = body !== undefined ? JSON.stringify(body) : '';
-  const timestamp = await getServerTime();
-  const signature = ovhSignature(
-    options.appSecret,
-    options.consumerKey,
-    method,
-    url,
-    bodyStr,
-    timestamp
-  );
-
-  const headers: Record<string, string> = {
-    'X-Ovh-Application': options.appKey,
-    'X-Ovh-Consumer': options.consumerKey,
-    'X-Ovh-Timestamp': String(timestamp),
-    'X-Ovh-Signature': signature,
-    'Content-Type': 'application/json',
-  };
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    ...(bodyStr ? { body: bodyStr } : {}),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OVH: API error ${res.status}: ${text}`);
-  }
-
-  const text = await res.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
-}
-
 /**
  * Convert an FQDN to an OVH relative subdomain.
  *
@@ -104,6 +62,9 @@ function toFqdn(subDomain: string, zoneName: string): string {
   return `${subDomain}.${zoneName}`;
 }
 
+/** Cache TTL for OVH server time (30 seconds) */
+const TIME_CACHE_TTL = 30_000;
+
 /**
  * Create an OVHcloud DNS provider adapter.
  *
@@ -118,31 +79,84 @@ export function ovh(options: OvhOptions): DnsProvider {
   if (!consumerKey) throw new Error('OVH: consumerKey is required');
   if (!zoneName) throw new Error('OVH: zoneName is required');
 
+  let cachedTimestamp: number | null = null;
+  let cacheExpiry = 0;
+
+  async function getTimestamp(): Promise<number> {
+    const now = Date.now();
+    if (cachedTimestamp !== null && now < cacheExpiry) {
+      return cachedTimestamp;
+    }
+    const serverTime = await getServerTime();
+    cachedTimestamp = serverTime;
+    cacheExpiry = now + TIME_CACHE_TTL;
+    return serverTime;
+  }
+
+  async function apiFetch<T>(
+    method: string,
+    path: string,
+    body?: unknown
+  ): Promise<T> {
+    const url = `${OVH_API}${path}`;
+    const bodyStr = body !== undefined ? JSON.stringify(body) : '';
+    const timestamp = await getTimestamp();
+    const signature = ovhSignature(
+      appSecret,
+      consumerKey,
+      method,
+      url,
+      bodyStr,
+      timestamp
+    );
+
+    const headers: Record<string, string> = {
+      'X-Ovh-Application': appKey,
+      'X-Ovh-Consumer': consumerKey,
+      'X-Ovh-Timestamp': String(timestamp),
+      'X-Ovh-Signature': signature,
+      'Content-Type': 'application/json',
+    };
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      ...(bodyStr ? { body: bodyStr } : {}),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`OVH: API error ${res.status}: ${text}`);
+    }
+
+    const text = await res.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
+  }
+
   return {
     async getRecords(name: string): Promise<ProviderRecord[]> {
       const subDomain = toSubDomain(name, zoneName);
-      const ids = await ovhFetch<number[]>(
-        options,
+      const ids = await apiFetch<number[]>(
         'GET',
         `/domain/zone/${encodeURIComponent(zoneName)}/record?subDomain=${encodeURIComponent(subDomain)}`
       );
 
-      const records: ProviderRecord[] = [];
-      for (const id of ids) {
-        const detail = await ovhFetch<OvhRecordDetail>(
-          options,
-          'GET',
-          `/domain/zone/${encodeURIComponent(zoneName)}/record/${id}`
-        );
-        records.push({
-          id: String(detail.id),
-          type: detail.fieldType,
-          name: toFqdn(detail.subDomain, zoneName),
-          value: detail.target,
-        });
-      }
+      const details = await Promise.all(
+        ids.map((id) =>
+          apiFetch<OvhRecordDetail>(
+            'GET',
+            `/domain/zone/${encodeURIComponent(zoneName)}/record/${id}`
+          )
+        )
+      );
 
-      return records;
+      return details.map((detail) => ({
+        id: String(detail.id),
+        type: detail.fieldType,
+        name: toFqdn(detail.subDomain, zoneName),
+        value: detail.target,
+      }));
     },
 
     async createRecord(record: {
@@ -151,8 +165,7 @@ export function ovh(options: OvhOptions): DnsProvider {
       value: string;
     }): Promise<ProviderRecord> {
       const subDomain = toSubDomain(record.name, zoneName);
-      const detail = await ovhFetch<OvhRecordDetail>(
-        options,
+      const detail = await apiFetch<OvhRecordDetail>(
         'POST',
         `/domain/zone/${encodeURIComponent(zoneName)}/record`,
         {
@@ -164,8 +177,7 @@ export function ovh(options: OvhOptions): DnsProvider {
       );
 
       // Refresh the zone to apply changes
-      await ovhFetch<void>(
-        options,
+      await apiFetch<void>(
         'POST',
         `/domain/zone/${encodeURIComponent(zoneName)}/refresh`
       );
@@ -179,15 +191,13 @@ export function ovh(options: OvhOptions): DnsProvider {
     },
 
     async deleteRecord(id: string): Promise<void> {
-      await ovhFetch<void>(
-        options,
+      await apiFetch<void>(
         'DELETE',
         `/domain/zone/${encodeURIComponent(zoneName)}/record/${id}`
       );
 
       // Refresh the zone to apply changes
-      await ovhFetch<void>(
-        options,
+      await apiFetch<void>(
         'POST',
         `/domain/zone/${encodeURIComponent(zoneName)}/refresh`
       );

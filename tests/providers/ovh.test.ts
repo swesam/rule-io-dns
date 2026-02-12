@@ -80,6 +80,7 @@ describe('ovh', () => {
       const provider = ovh(baseOptions);
       await provider.getRecords('rm.example.com');
 
+      // call[0] = /auth/time, call[1] = getRecords API call
       const [url, init] = mockFetch.mock.calls[1]!;
       const headers = init.headers as Record<string, string>;
 
@@ -95,17 +96,16 @@ describe('ovh', () => {
   });
 
   describe('getRecords', () => {
-    it('fetches record IDs then each record detail', async () => {
+    it('fetches record IDs then each record detail in parallel', async () => {
+      // Only one /auth/time call needed — timestamp is cached for subsequent requests
       mockTime();
       mockFetch.mockResolvedValueOnce(okJson([101, 102]));
-      mockTime();
       mockFetch.mockResolvedValueOnce(
         okJson({
           id: 101, fieldType: 'CNAME', subDomain: 'rm',
           target: 'to.rulemailer.se', ttl: 3600, zone: 'example.com',
         })
       );
-      mockTime();
       mockFetch.mockResolvedValueOnce(
         okJson({
           id: 102, fieldType: 'A', subDomain: 'rm',
@@ -120,6 +120,9 @@ describe('ovh', () => {
         { id: '101', type: 'CNAME', name: 'rm.example.com', value: 'to.rulemailer.se' },
         { id: '102', type: 'A', name: 'rm.example.com', value: '1.2.3.4' },
       ]);
+
+      // 1 time + 1 IDs + 2 details = 4 fetch calls (not 6)
+      expect(mockFetch).toHaveBeenCalledTimes(4);
     });
 
     it('returns empty array when no records exist', async () => {
@@ -142,7 +145,6 @@ describe('ovh', () => {
           target: 'to.rulemailer.se', ttl: 3600, zone: 'example.com',
         })
       );
-      mockTime();
       mockFetch.mockResolvedValueOnce(okEmpty());
 
       const provider = ovh(baseOptions);
@@ -159,8 +161,8 @@ describe('ovh', () => {
         value: 'to.rulemailer.se',
       });
 
-      // Verify refresh was called
-      const [refreshUrl] = mockFetch.mock.calls[3]!;
+      // call[0] = /auth/time, call[1] = POST record, call[2] = refresh
+      const [refreshUrl] = mockFetch.mock.calls[2]!;
       expect(refreshUrl).toBe(
         'https://eu.api.ovh.com/1.0/domain/zone/example.com/refresh'
       );
@@ -171,12 +173,12 @@ describe('ovh', () => {
     it('deletes a record and refreshes the zone', async () => {
       mockTime();
       mockFetch.mockResolvedValueOnce(okEmpty());
-      mockTime();
       mockFetch.mockResolvedValueOnce(okEmpty());
 
       const provider = ovh(baseOptions);
       await provider.deleteRecord('301');
 
+      // call[0] = /auth/time, call[1] = DELETE, call[2] = refresh
       const [deleteUrl] = mockFetch.mock.calls[1]!;
       expect(deleteUrl).toBe(
         'https://eu.api.ovh.com/1.0/domain/zone/example.com/record/301'

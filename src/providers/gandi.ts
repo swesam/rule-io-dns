@@ -21,6 +21,14 @@ interface GandiRrset {
 
 const GANDI_API = 'https://api.gandi.net/v5';
 
+class GandiApiError extends Error {
+  status: number;
+  constructor(status: number, body: string) {
+    super(`Gandi API error ${status}: ${body}`);
+    this.status = status;
+  }
+}
+
 async function gandiFetch<T>(
   apiToken: string,
   path: string,
@@ -37,7 +45,7 @@ async function gandiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Gandi API error ${res.status}: ${text}`);
+    throw new GandiApiError(res.status, text);
   }
 
   return (await res.json()) as T;
@@ -122,7 +130,7 @@ export function gandi(options: GandiOptions): DnsProvider {
         );
       } catch (err) {
         // Gandi returns 404 when no records exist at a name
-        if (err instanceof Error && err.message.includes('404')) {
+        if (err instanceof GandiApiError && err.status === 404) {
           return [];
         }
         throw err;
