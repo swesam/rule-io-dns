@@ -7,14 +7,17 @@
 
 import { provisionDns } from '../src/index.js';
 import { cloudflare, listCloudflareZones } from '../src/providers/cloudflare.js';
+import { cleanDomain } from '../src/domain.js';
 
-const domain = process.argv[2];
+const rawDomain = process.argv[2];
 const apiToken = process.env.CF_API_TOKEN;
 
-if (!domain) {
+if (!rawDomain) {
   console.error('Usage: CF_API_TOKEN=xxx npx tsx examples/provision.ts <domain>');
   process.exit(1);
 }
+
+const domain = cleanDomain(rawDomain);
 
 if (!apiToken) {
   console.error('Missing CF_API_TOKEN environment variable.');

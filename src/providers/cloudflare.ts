@@ -68,6 +68,9 @@ async function cfFetchWithToken<T>(
 export async function listCloudflareZones(
   apiToken: string
 ): Promise<CloudflareZone[]> {
+  if (!apiToken) {
+    throw new Error('Cloudflare: apiToken is required');
+  }
   const zones: CloudflareZone[] = [];
   let page = 1;
 
