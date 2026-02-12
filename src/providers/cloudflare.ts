@@ -33,12 +33,13 @@ const CF_API = 'https://api.cloudflare.com/client/v4';
 export function cloudflare(options: CloudflareOptions): DnsProvider {
   const { apiToken } = options;
   let resolvedZoneId: string | undefined = options.zoneId;
+  let zoneIdPromise: Promise<string> | undefined;
 
   if (!apiToken) {
-    throw new Error('cloudflare: apiToken is required');
+    throw new Error('Cloudflare: apiToken is required');
   }
   if (!options.zoneId && !options.domain) {
-    throw new Error('cloudflare: either zoneId or domain is required');
+    throw new Error('Cloudflare: either zoneId or domain is required');
   }
 
   async function cfFetch<T>(
@@ -73,9 +74,7 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
     return data;
   }
 
-  async function getZoneId(): Promise<string> {
-    if (resolvedZoneId) return resolvedZoneId;
-
+  async function lookupZoneId(): Promise<string> {
     const domain = cleanDomain(options.domain!);
     const data = await cfFetch<{ id: string }[]>(
       `/zones?name=${encodeURIComponent(domain)}`
@@ -89,6 +88,17 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
 
     resolvedZoneId = data.result[0]!.id;
     return resolvedZoneId;
+  }
+
+  function getZoneId(): Promise<string> {
+    if (resolvedZoneId) return Promise.resolve(resolvedZoneId);
+    if (!zoneIdPromise) {
+      zoneIdPromise = lookupZoneId().catch((err) => {
+        zoneIdPromise = undefined;
+        throw err;
+      });
+    }
+    return zoneIdPromise;
   }
 
   return {
