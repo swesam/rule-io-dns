@@ -44,13 +44,13 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
     path: string,
     init?: RequestInit
   ): Promise<CloudflareApiResponse<T>> {
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${apiToken}`);
+    headers.set('Content-Type', 'application/json');
+
     const res = await fetch(`${CF_API}${path}`, {
       ...init,
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Content-Type': 'application/json',
-        ...init?.headers,
-      },
+      headers,
     });
 
     if (!res.ok) {
@@ -60,7 +60,16 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
       );
     }
 
-    return res.json() as Promise<CloudflareApiResponse<T>>;
+    const data = (await res.json()) as CloudflareApiResponse<T>;
+
+    if (!data.success) {
+      const errorDetails =
+        data.errors?.map((e) => `${e.code}: ${e.message}`).join(', ') ||
+        'unknown error';
+      throw new Error(`Cloudflare API error: ${errorDetails}`);
+    }
+
+    return data;
   }
 
   async function getZoneId(): Promise<string> {

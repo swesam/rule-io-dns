@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { cloudflare } from '../../src/providers/cloudflare.js';
 
 const mockFetch = vi.fn();
@@ -54,13 +54,13 @@ describe('cloudflare', () => {
         { id: 'r2', type: 'A', name: 'rm.example.com', value: '1.2.3.4' },
       ]);
 
+      const [, callInit] = mockFetch.mock.calls[0]!;
+      const headers = callInit.headers as Headers;
+      expect(headers.get('Authorization')).toBe('Bearer tok');
+      expect(headers.get('Content-Type')).toBe('application/json');
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.cloudflare.com/client/v4/zones/z1/dns_records?name=rm.example.com',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer tok',
-          }),
-        })
+        expect.anything()
       );
     });
 
@@ -119,6 +119,23 @@ describe('cloudflare', () => {
       const provider = cloudflare({ apiToken: 'bad-tok', zoneId: 'z1' });
       await expect(provider.getRecords('rm.example.com')).rejects.toThrow(
         'Cloudflare API error 403: Forbidden'
+      );
+    });
+
+    it('throws on success: false with error details', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            errors: [{ code: 1001, message: 'Invalid zone' }],
+            result: null,
+          }),
+      });
+
+      const provider = cloudflare({ apiToken: 'tok', zoneId: 'z1' });
+      await expect(provider.getRecords('rm.example.com')).rejects.toThrow(
+        'Cloudflare API error: 1001: Invalid zone'
       );
     });
   });
