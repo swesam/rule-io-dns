@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
-import { cloudflare } from '../../src/providers/cloudflare.js';
+import { cloudflare, listCloudflareZones } from '../../src/providers/cloudflare.js';
 
 const mockFetch = vi.fn();
 
@@ -190,6 +190,25 @@ describe('cloudflare', () => {
       );
     });
 
+    it('deduplicates concurrent zoneId lookups', async () => {
+      let resolveZoneLookup!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveZoneLookup = resolve; })
+      );
+      mockFetch.mockResolvedValue(cfResponse([]));
+
+      const provider = cloudflare({ apiToken: 'tok', domain: 'example.com' });
+      const p1 = provider.getRecords('rm.example.com');
+      const p2 = provider.getRecords('_dmarc.rm.example.com');
+
+      // Both requests are in flight, but only one zone lookup should exist
+      resolveZoneLookup(cfResponse([{ id: 'z1' }]));
+      await Promise.all([p1, p2]);
+
+      // 1 zone lookup + 2 getRecords = 3 total
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
     it('normalizes domain input via cleanDomain', async () => {
       mockFetch.mockResolvedValueOnce(cfResponse([{ id: 'z1' }]));
       mockFetch.mockResolvedValueOnce(cfResponse([]));
@@ -202,5 +221,55 @@ describe('cloudflare', () => {
         expect.anything()
       );
     });
+  });
+});
+
+describe('listCloudflareZones', () => {
+  it('returns all zones for the token', async () => {
+    mockFetch.mockResolvedValueOnce(
+      cfResponse([
+        { id: 'z1', name: 'example.com' },
+        { id: 'z2', name: 'alright.se' },
+      ])
+    );
+
+    const zones = await listCloudflareZones('tok');
+
+    expect(zones).toEqual([
+      { id: 'z1', name: 'example.com' },
+      { id: 'z2', name: 'alright.se' },
+    ]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.cloudflare.com/client/v4/zones?page=1&per_page=50',
+      expect.anything()
+    );
+  });
+
+  it('paginates when there are more than 50 zones', async () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => ({
+      id: `z${i}`,
+      name: `domain${i}.com`,
+    }));
+    const page2 = [{ id: 'z50', name: 'last.com' }];
+
+    mockFetch.mockResolvedValueOnce(cfResponse(page1));
+    mockFetch.mockResolvedValueOnce(cfResponse(page2));
+
+    const zones = await listCloudflareZones('tok');
+
+    expect(zones).toHaveLength(51);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.cloudflare.com/client/v4/zones?page=2&per_page=50',
+      expect.anything()
+    );
+  });
+
+  it('returns empty array when no zones exist', async () => {
+    mockFetch.mockResolvedValueOnce(cfResponse([]));
+
+    const zones = await listCloudflareZones('tok');
+
+    expect(zones).toEqual([]);
   });
 });

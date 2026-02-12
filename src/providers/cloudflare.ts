@@ -9,6 +9,11 @@ export interface CloudflareOptions {
   domain?: string;
 }
 
+export interface CloudflareZone {
+  id: string;
+  name: string;
+}
+
 interface CloudflareApiResponse<T> {
   success: boolean;
   errors: { code: number; message: string }[];
@@ -23,6 +28,65 @@ interface CloudflareDnsRecord {
 }
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
+
+async function cfFetchWithToken<T>(
+  apiToken: string,
+  path: string,
+  init?: RequestInit
+): Promise<CloudflareApiResponse<T>> {
+  const headers = new Headers(init?.headers);
+  headers.set('Authorization', `Bearer ${apiToken}`);
+  headers.set('Content-Type', 'application/json');
+
+  const res = await fetch(`${CF_API}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Cloudflare API error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as CloudflareApiResponse<T>;
+
+  if (!data.success) {
+    const errorDetails =
+      data.errors?.map((e) => `${e.code}: ${e.message}`).join(', ') ||
+      'unknown error';
+    throw new Error(`Cloudflare API error: ${errorDetails}`);
+  }
+
+  return data;
+}
+
+/**
+ * List all zones (domains) accessible with the given API token.
+ *
+ * Useful for building a domain picker UI after the user provides a token.
+ */
+export async function listCloudflareZones(
+  apiToken: string
+): Promise<CloudflareZone[]> {
+  const zones: CloudflareZone[] = [];
+  let page = 1;
+
+  while (true) {
+    const data = await cfFetchWithToken<{ id: string; name: string }[]>(
+      apiToken,
+      `/zones?page=${page}&per_page=50`
+    );
+
+    for (const z of data.result) {
+      zones.push({ id: z.id, name: z.name });
+    }
+
+    if (data.result.length < 50) break;
+    page++;
+  }
+
+  return zones;
+}
 
 /**
  * Create a Cloudflare DNS provider adapter.
@@ -42,36 +106,8 @@ export function cloudflare(options: CloudflareOptions): DnsProvider {
     throw new Error('Cloudflare: either zoneId or domain is required');
   }
 
-  async function cfFetch<T>(
-    path: string,
-    init?: RequestInit
-  ): Promise<CloudflareApiResponse<T>> {
-    const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${apiToken}`);
-    headers.set('Content-Type', 'application/json');
-
-    const res = await fetch(`${CF_API}${path}`, {
-      ...init,
-      headers,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(
-        `Cloudflare API error ${res.status}: ${text}`
-      );
-    }
-
-    const data = (await res.json()) as CloudflareApiResponse<T>;
-
-    if (!data.success) {
-      const errorDetails =
-        data.errors?.map((e) => `${e.code}: ${e.message}`).join(', ') ||
-        'unknown error';
-      throw new Error(`Cloudflare API error: ${errorDetails}`);
-    }
-
-    return data;
+  function cfFetch<T>(path: string, init?: RequestInit) {
+    return cfFetchWithToken<T>(apiToken, path, init);
   }
 
   async function lookupZoneId(): Promise<string> {
