@@ -15,6 +15,11 @@
       "types": "./dist/providers/cloudflare.d.ts",
       "import": "./dist/providers/cloudflare.mjs",
       "require": "./dist/providers/cloudflare.js"
+    },
+    "./ionos": {
+      "types": "./dist/providers/ionos.d.ts",
+      "import": "./dist/providers/ionos.mjs",
+      "require": "./dist/providers/ionos.js"
     }
   },
   "files": [
