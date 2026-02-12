@@ -1,5 +1,8 @@
 export { checkDns } from './check-dns.js';
 export { getRequiredDnsRecords } from './get-required-records.js';
+export { provisionDns } from './provision.js';
+export type { ProvisionResult } from './provision.js';
+export type { DnsProvider, ProviderRecord } from './provider.js';
 export { cleanDomain } from './domain.js';
 export { parseDmarc } from './parse-dmarc.js';
 export type { DmarcRecord } from './parse-dmarc.js';
