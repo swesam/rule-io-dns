@@ -208,7 +208,12 @@ export function gandi(options: GandiOptions): DnsProvider {
         throw err;
       }
 
+      // Only normalize case/trailing dots for domain-like record types
+      const domainLikeTypes = new Set(['CNAME', 'NS', 'PTR', 'MX', 'SRV']);
+      const isDomainLike = domainLikeTypes.has(type);
+
       const normalizeValue = (v: string): string => {
+        if (!isDomainLike) return v;
         let n = v.toLowerCase();
         while (n.endsWith('.')) n = n.slice(0, -1);
         return n;

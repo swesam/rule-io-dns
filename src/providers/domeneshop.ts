@@ -127,7 +127,15 @@ export function domeneshop(options: DomeneshopOptions): DnsProvider {
   if (!secret) {
     throw new Error('Domeneshop: secret is required');
   }
-  if (options.domainId == null && !options.domain) {
+  if (options.domainId != null) {
+    if (
+      !Number.isFinite(options.domainId) ||
+      !Number.isInteger(options.domainId) ||
+      options.domainId <= 0
+    ) {
+      throw new Error('Domeneshop: domainId must be a positive integer');
+    }
+  } else if (!options.domain) {
     throw new Error('Domeneshop: either domainId or domain is required');
   }
 
