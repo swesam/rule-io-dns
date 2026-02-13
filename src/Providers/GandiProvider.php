@@ -45,7 +45,7 @@ class GandiProvider implements DnsProvider
         foreach ($data as $rrset) {
             foreach ($rrset['rrset_values'] as $value) {
                 $records[] = new ProviderRecord(
-                    id: $rrset['rrset_name'] . '/' . $rrset['rrset_type'],
+                    id: $rrset['rrset_name'] . '/' . $rrset['rrset_type'] . '/' . $value,
                     type: $rrset['rrset_type'],
                     name: $this->toFqdn($rrset['rrset_name']),
                     value: $value,
@@ -67,7 +67,7 @@ class GandiProvider implements DnsProvider
         ]);
 
         return new ProviderRecord(
-            id: $relative . '/' . $record['type'],
+            id: $relative . '/' . $record['type'] . '/' . $record['value'],
             type: $record['type'],
             name: $this->toFqdn($relative),
             value: $record['value'],
@@ -76,16 +76,56 @@ class GandiProvider implements DnsProvider
 
     public function deleteRecord(string $id): void
     {
-        $parts = explode('/', $id, 2);
-        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+        $firstSlash = strpos($id, '/');
+        $secondSlash = $firstSlash !== false ? strpos($id, '/', $firstSlash + 1) : false;
+        if ($firstSlash === false || $secondSlash === false) {
             throw new \InvalidArgumentException("Gandi: invalid record id \"{$id}\"");
         }
-        [$name, $type] = $parts;
 
-        $this->request(
-            'DELETE',
-            '/livedns/domains/' . urlencode($this->domain) . '/records/' . urlencode($name) . '/' . urlencode($type),
-        );
+        $name = substr($id, 0, $firstSlash);
+        $type = substr($id, $firstSlash + 1, $secondSlash - $firstSlash - 1);
+        $value = substr($id, $secondSlash + 1);
+
+        if ($name === '' || $type === '' || $value === '') {
+            throw new \InvalidArgumentException("Gandi: invalid record id \"{$id}\"");
+        }
+
+        $rrsetPath = '/livedns/domains/' . urlencode($this->domain) . '/records/' . urlencode($name) . '/' . urlencode($type);
+
+        // Fetch current rrset to check for other values
+        try {
+            $rrset = $this->request('GET', $rrsetPath);
+        } catch (ClientException $e) {
+            if ($e->getResponse()->getStatusCode() === 404) {
+                return; // Already gone
+            }
+            throw $e;
+        }
+
+        $domainLikeTypes = ['CNAME', 'NS', 'PTR', 'MX', 'SRV'];
+        $isDomainLike = in_array($type, $domainLikeTypes, true);
+
+        $normalizeValue = function (string $v) use ($isDomainLike): string {
+            if (! $isDomainLike) {
+                return $v;
+            }
+            return rtrim(strtolower($v), '.');
+        };
+
+        $normalizedValue = $normalizeValue($value);
+        $remaining = array_values(array_filter(
+            $rrset['rrset_values'],
+            fn (string $v) => $normalizeValue($v) !== $normalizedValue,
+        ));
+
+        if (count($remaining) === 0) {
+            $this->request('DELETE', $rrsetPath);
+        } else {
+            $this->request('PUT', $rrsetPath, [
+                'rrset_ttl' => $rrset['rrset_ttl'],
+                'rrset_values' => $remaining,
+            ]);
+        }
     }
 
     /**

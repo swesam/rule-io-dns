@@ -46,7 +46,7 @@ describe('GandiProvider', function () {
             $records = $provider->getRecords('rm.example.com');
 
             expect($records)->toHaveCount(1)
-                ->and($records[0]->id)->toBe('rm/CNAME')
+                ->and($records[0]->id)->toBe('rm/CNAME/to.rulemailer.se.')
                 ->and($records[0]->value)->toBe('to.rulemailer.se.');
 
             expect((string) $history[0]['request']->getUri())->toContain('/livedns/domains/example.com/records/rm')
@@ -105,7 +105,7 @@ describe('GandiProvider', function () {
                 'type' => 'CNAME', 'name' => 'rm.example.com', 'value' => 'to.rulemailer.se.',
             ]);
 
-            expect($result->id)->toBe('rm/CNAME')
+            expect($result->id)->toBe('rm/CNAME/to.rulemailer.se.')
                 ->and($result->name)->toBe('rm.example.com')
                 ->and($result->value)->toBe('to.rulemailer.se.');
 
@@ -117,15 +117,58 @@ describe('GandiProvider', function () {
     });
 
     describe('deleteRecord', function () {
-        it('sends DELETE with name and type from composite id', function () {
+        it('deletes entire rrset when it is the last value', function () {
             $history = [];
-            $client = gandiClient($history, gandiOk(null));
+            $client = gandiClient($history,
+                gandiOk(['rrset_name' => 'rm', 'rrset_type' => 'CNAME', 'rrset_ttl' => 300, 'rrset_values' => ['to.rulemailer.se.']]),
+                gandiOk(null),
+            );
 
             $provider = new GandiProvider(apiToken: 'tok', domain: 'example.com', client: $client);
-            $provider->deleteRecord('rm/CNAME');
+            $provider->deleteRecord('rm/CNAME/to.rulemailer.se.');
 
-            expect($history[0]['request']->getMethod())->toBe('DELETE')
+            expect($history[0]['request']->getMethod())->toBe('GET')
                 ->and((string) $history[0]['request']->getUri())->toContain('/records/rm/CNAME');
+            expect($history[1]['request']->getMethod())->toBe('DELETE')
+                ->and((string) $history[1]['request']->getUri())->toContain('/records/rm/CNAME');
+        });
+
+        it('updates rrset with remaining values when multi-value', function () {
+            $history = [];
+            $client = gandiClient($history,
+                gandiOk(['rrset_name' => '@', 'rrset_type' => 'TXT', 'rrset_ttl' => 300, 'rrset_values' => ['"v=spf1 ~all"', '"verification=abc"']]),
+                gandiOk(null),
+            );
+
+            $provider = new GandiProvider(apiToken: 'tok', domain: 'example.com', client: $client);
+            $provider->deleteRecord('@/TXT/"v=spf1 ~all"');
+
+            expect($history[1]['request']->getMethod())->toBe('PUT');
+            $body = json_decode((string) $history[1]['request']->getBody(), true);
+            expect($body['rrset_values'])->toBe(['"verification=abc"']);
+        });
+
+        it('normalizes trailing dots for domain-like types', function () {
+            $history = [];
+            $client = gandiClient($history,
+                gandiOk(['rrset_name' => 'rm', 'rrset_type' => 'CNAME', 'rrset_ttl' => 300, 'rrset_values' => ['to.rulemailer.se.']]),
+                gandiOk(null),
+            );
+
+            $provider = new GandiProvider(apiToken: 'tok', domain: 'example.com', client: $client);
+            $provider->deleteRecord('rm/CNAME/to.rulemailer.se');
+
+            expect($history[1]['request']->getMethod())->toBe('DELETE');
+        });
+
+        it('returns silently when rrset is already gone (404)', function () {
+            $history = [];
+            $client = gandiClient($history, new Response(404, [], 'Not Found'));
+
+            $provider = new GandiProvider(apiToken: 'tok', domain: 'example.com', client: $client);
+            $provider->deleteRecord('rm/CNAME/to.rulemailer.se.');
+
+            expect($history)->toHaveCount(1);
         });
 
         it('throws on invalid record id', function () {
@@ -133,6 +176,14 @@ describe('GandiProvider', function () {
             expect(fn () => $provider->deleteRecord('invalid'))->toThrow(
                 InvalidArgumentException::class,
                 'Gandi: invalid record id "invalid"'
+            );
+        });
+
+        it('throws on id with only two parts', function () {
+            $provider = new GandiProvider(apiToken: 'tok', domain: 'example.com');
+            expect(fn () => $provider->deleteRecord('rm/CNAME'))->toThrow(
+                InvalidArgumentException::class,
+                'Gandi: invalid record id "rm/CNAME"'
             );
         });
     });

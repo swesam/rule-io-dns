@@ -11,7 +11,13 @@ class OvhProvider implements DnsProvider
 {
     private const API = 'https://eu.api.ovh.com/1.0';
 
+    private const TIME_CACHE_TTL = 30;
+
     private ClientInterface $client;
+
+    private ?int $cachedTimestamp = null;
+
+    private float $cacheExpiry = 0;
 
     public function __construct(
         private readonly string $appKey,
@@ -118,8 +124,16 @@ class OvhProvider implements DnsProvider
 
     private function getServerTime(): int
     {
+        $now = microtime(true);
+        if ($this->cachedTimestamp !== null && $now < $this->cacheExpiry) {
+            return $this->cachedTimestamp;
+        }
+
         $response = $this->client->request('GET', self::API . '/auth/time');
-        return (int) json_decode((string) $response->getBody(), true);
+        $this->cachedTimestamp = (int) json_decode((string) $response->getBody(), true);
+        $this->cacheExpiry = $now + self::TIME_CACHE_TTL;
+
+        return $this->cachedTimestamp;
     }
 
     private static function signature(string $appSecret, string $consumerKey, string $method, string $url, string $body, int $timestamp): string

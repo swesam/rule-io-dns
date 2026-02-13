@@ -99,8 +99,8 @@ describe('OvhProvider', function () {
             $history = [];
             $client = ovhClient($history,
                 ovhTime(), ovhOk([101, 102]),
-                ovhTime(), ovhOk(['id' => 101, 'fieldType' => 'CNAME', 'subDomain' => 'rm', 'target' => 'to.rulemailer.se', 'ttl' => 3600, 'zone' => 'example.com']),
-                ovhTime(), ovhOk(['id' => 102, 'fieldType' => 'A', 'subDomain' => 'rm', 'target' => '1.2.3.4', 'ttl' => 3600, 'zone' => 'example.com']),
+                ovhOk(['id' => 101, 'fieldType' => 'CNAME', 'subDomain' => 'rm', 'target' => 'to.rulemailer.se', 'ttl' => 3600, 'zone' => 'example.com']),
+                ovhOk(['id' => 102, 'fieldType' => 'A', 'subDomain' => 'rm', 'target' => '1.2.3.4', 'ttl' => 3600, 'zone' => 'example.com']),
             );
 
             $provider = new OvhProvider(...array_merge($baseArgs, ['client' => $client]));
@@ -129,7 +129,7 @@ describe('OvhProvider', function () {
             $history = [];
             $client = ovhClient($history,
                 ovhTime(), ovhOk(['id' => 201, 'fieldType' => 'CNAME', 'subDomain' => 'rm', 'target' => 'to.rulemailer.se', 'ttl' => 3600, 'zone' => 'example.com']),
-                ovhTime(), ovhEmpty(),
+                ovhEmpty(),
             );
 
             $provider = new OvhProvider(...array_merge($baseArgs, ['client' => $client]));
@@ -141,8 +141,8 @@ describe('OvhProvider', function () {
                 ->and($result->type)->toBe('CNAME')
                 ->and($result->name)->toBe('rm.example.com');
 
-            // Verify refresh was called
-            expect((string) $history[3]['request']->getUri())->toContain('/domain/zone/example.com/refresh');
+            // Verify refresh was called (time cached, so: time + create + refresh = 3 requests)
+            expect((string) $history[2]['request']->getUri())->toContain('/domain/zone/example.com/refresh');
         });
     });
 
@@ -151,7 +151,7 @@ describe('OvhProvider', function () {
             $history = [];
             $client = ovhClient($history,
                 ovhTime(), ovhEmpty(),
-                ovhTime(), ovhEmpty(),
+                ovhEmpty(),
             );
 
             $provider = new OvhProvider(...array_merge($baseArgs, ['client' => $client]));
