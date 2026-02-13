@@ -7,6 +7,7 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\ClientException;
 use RuleIo\Dns\Contracts\DnsProvider;
 use RuleIo\Dns\Data\ProviderRecord;
+use RuleIo\Dns\Domain;
 
 class GandiProvider implements DnsProvider
 {
@@ -14,9 +15,11 @@ class GandiProvider implements DnsProvider
 
     private ClientInterface $client;
 
+    private string $domain;
+
     public function __construct(
         private readonly string $apiToken,
-        private readonly string $domain,
+        string $domain,
         ?ClientInterface $client = null,
     ) {
         if ($apiToken === '') {
@@ -25,6 +28,7 @@ class GandiProvider implements DnsProvider
         if ($domain === '') {
             throw new \InvalidArgumentException('Gandi: domain is required');
         }
+        $this->domain = Domain::clean($domain);
         $this->client = $client ?? new Client();
     }
 

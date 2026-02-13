@@ -63,7 +63,7 @@ class DmarcParser
 
         $pct = null;
         if (isset($tags['pct'])) {
-            if (is_numeric($tags['pct'])) {
+            if (ctype_digit($tags['pct'])) {
                 $num = (int) $tags['pct'];
                 if ($num >= 0 && $num <= 100) {
                     $pct = $num;

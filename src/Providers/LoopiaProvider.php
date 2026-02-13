@@ -67,6 +67,10 @@ class LoopiaProvider implements DnsProvider
         // Loopia does not return the created record, so fetch to find it
         $records = $this->call('getZoneRecords', [$this->domain, $subdomain]);
 
+        if (is_string($records)) {
+            throw new \RuntimeException("Loopia: getZoneRecords failed: {$records}");
+        }
+
         foreach ($records as $r) {
             if ($r['type'] === $record['type'] && $r['rdata'] === $record['value']) {
                 return new ProviderRecord(
@@ -88,7 +92,11 @@ class LoopiaProvider implements DnsProvider
             throw new \InvalidArgumentException("Loopia: invalid record id \"{$id}\"");
         }
         $subdomain = substr($id, 0, $sep);
-        $recordId = (int) substr($id, $sep + 1);
+        $suffix = substr($id, $sep + 1);
+        if (!ctype_digit($suffix)) {
+            throw new \InvalidArgumentException("Loopia: invalid record id \"{$id}\"");
+        }
+        $recordId = (int) $suffix;
 
         $result = $this->call('removeZoneRecord', [$this->domain, $subdomain, $recordId]);
 

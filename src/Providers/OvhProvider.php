@@ -6,6 +6,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use RuleIo\Dns\Contracts\DnsProvider;
 use RuleIo\Dns\Data\ProviderRecord;
+use RuleIo\Dns\Domain;
 
 class OvhProvider implements DnsProvider
 {
@@ -15,6 +16,8 @@ class OvhProvider implements DnsProvider
 
     private ClientInterface $client;
 
+    private string $zoneName;
+
     private ?int $cachedTimestamp = null;
 
     private float $cacheExpiry = 0;
@@ -23,7 +26,7 @@ class OvhProvider implements DnsProvider
         private readonly string $appKey,
         private readonly string $appSecret,
         private readonly string $consumerKey,
-        private readonly string $zoneName,
+        string $zoneName,
         ?ClientInterface $client = null,
     ) {
         if ($appKey === '') {
@@ -38,6 +41,7 @@ class OvhProvider implements DnsProvider
         if ($zoneName === '') {
             throw new \InvalidArgumentException('OVH: zoneName is required');
         }
+        $this->zoneName = Domain::clean($zoneName);
         $this->client = $client ?? new Client();
     }
 

@@ -56,6 +56,10 @@ class IonosProvider implements DnsProvider
             'prio' => 0,
         ]]);
 
+        if (!is_array($data) || count($data) === 0) {
+            throw new \RuntimeException('IONOS: createRecord returned empty response');
+        }
+
         $r = $data[0];
         return new ProviderRecord(
             id: $r['id'],
