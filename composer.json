@@ -1,0 +1,30 @@
+{
+    "name": "rule-io/dns",
+    "description": "DNS validation, record generation, and auto-provisioning for Rule.io email setup",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.1",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "RuleIo\\Dns\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "RuleIo\\Dns\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable"
+}
