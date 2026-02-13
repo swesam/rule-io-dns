@@ -35,7 +35,7 @@ class RequiredRecords
             ),
             new DnsRecord(
                 type: 'TXT',
-                name: '_dmarc.' . Constants::RULE_SENDING_SUBDOMAIN . '.' . $domain,
+                name: '_dmarc.' . $domain,
                 value: Constants::RULE_DMARC_POLICY,
                 purpose: 'dmarc',
             ),

@@ -19,8 +19,7 @@ class DnsChecker
         $domain = Domain::clean($input);
         $sendingDomain = Constants::RULE_SENDING_SUBDOMAIN . '.' . $domain;
         $dkimDomain = Constants::RULE_DKIM_SELECTOR . '._domainkey.' . $domain;
-        $subdomainDmarcDomain = '_dmarc.' . Constants::RULE_SENDING_SUBDOMAIN . '.' . $domain;
-        $orgDmarcDomain = '_dmarc.' . $domain;
+        $dmarcDomain = '_dmarc.' . $domain;
 
         $warnings = [];
 
@@ -28,12 +27,11 @@ class DnsChecker
         $mx = self::checkMx($resolver, $sendingDomain);
         $spf = self::checkSpf($resolver, $sendingDomain);
         $dkim = self::checkDkim($resolver, $dkimDomain);
-        $dmarc = self::checkDmarc($resolver, $subdomainDmarcDomain);
-        $orgDmarcResult = self::checkDmarc($resolver, $orgDmarcDomain);
+        $dmarc = self::checkDmarc($resolver, $dmarcDomain);
 
         self::detectCnameConflict($resolver, $sendingDomain, $warnings);
         self::detectDkimConflict($resolver, $dkimDomain, $warnings);
-        self::analyzeDmarc($orgDmarcResult, $sendingDomain, $warnings);
+        self::analyzeDmarc($dmarc, $sendingDomain, $warnings);
 
         $allPassed = $mx->status === DnsRecordStatus::Pass
             && $spf->status === DnsRecordStatus::Pass
