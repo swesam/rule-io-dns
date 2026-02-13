@@ -41,19 +41,19 @@ function dsError(status: number, body: string) {
 describe('domeneshop', () => {
   it('throws if token is missing', () => {
     expect(() => domeneshop({ token: '', secret: 's', domainId: 1 })).toThrow(
-      'token is required'
+      'Domeneshop: token is required'
     );
   });
 
   it('throws if secret is missing', () => {
     expect(() => domeneshop({ token: 't', secret: '', domainId: 1 })).toThrow(
-      'secret is required'
+      'Domeneshop: secret is required'
     );
   });
 
   it('throws if neither domainId nor domain is provided', () => {
     expect(() => domeneshop({ token: 't', secret: 's' })).toThrow(
-      'either domainId or domain is required'
+      'Domeneshop: either domainId or domain is required'
     );
   });
 
@@ -170,7 +170,7 @@ describe('domeneshop', () => {
 
       const provider = domeneshop({ token: 't', secret: 's', domain: 'nonexistent.com' });
       await expect(provider.getRecords('rm.nonexistent.com')).rejects.toThrow(
-        'no domain found for "nonexistent.com"'
+        'Domeneshop: no domain found for "nonexistent.com"'
       );
     });
   });
@@ -195,7 +195,7 @@ describe('listDomeneshopDomains', () => {
 
   it('throws if token/secret missing', async () => {
     await expect(listDomeneshopDomains('', 's')).rejects.toThrow(
-      'token and secret are required'
+      'Domeneshop: token and secret are required'
     );
   });
 });

@@ -37,7 +37,7 @@ async function getServerTime(): Promise<number> {
   const res = await fetch(`${OVH_API}/auth/time`);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OVH: failed to get server time: ${res.status} ${text}`);
+    throw new Error(`OVH: failed to get server time: ${res.status}: ${text}`);
   }
   return (await res.json()) as number;
 }

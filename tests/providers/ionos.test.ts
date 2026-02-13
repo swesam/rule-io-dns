@@ -37,13 +37,13 @@ function ionosError(status: number, body: string) {
 describe('ionos', () => {
   it('throws if apiKey is missing', () => {
     expect(() => ionos({ apiKey: '', zoneId: 'z1' })).toThrow(
-      'apiKey is required'
+      'IONOS: apiKey is required'
     );
   });
 
   it('throws if neither zoneId nor domain is provided', () => {
     expect(() => ionos({ apiKey: 'prefix.secret' })).toThrow(
-      'either zoneId or domain is required'
+      'IONOS: either zoneId or domain is required'
     );
   });
 
@@ -189,7 +189,7 @@ describe('ionos', () => {
 
       const provider = ionos({ apiKey: 'prefix.secret', domain: 'nonexistent.com' });
       await expect(provider.getRecords('rm.nonexistent.com')).rejects.toThrow(
-        'no zone found for domain "nonexistent.com"'
+        'IONOS: no zone found for domain "nonexistent.com"'
       );
     });
   });
@@ -213,6 +213,6 @@ describe('listIonosZones', () => {
   });
 
   it('throws if apiKey is missing', async () => {
-    await expect(listIonosZones('')).rejects.toThrow('apiKey is required');
+    await expect(listIonosZones('')).rejects.toThrow('IONOS: apiKey is required');
   });
 });

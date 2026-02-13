@@ -31,13 +31,13 @@ function hetznerError(status: number, body: string) {
 describe('hetzner', () => {
   it('throws if apiToken is missing', () => {
     expect(() => hetzner({ apiToken: '', zoneId: 'z1' })).toThrow(
-      'apiToken is required'
+      'Hetzner: apiToken is required'
     );
   });
 
   it('throws if neither zoneId nor domain is provided', () => {
     expect(() => hetzner({ apiToken: 'tok' })).toThrow(
-      'either zoneId or domain is required'
+      'Hetzner: either zoneId or domain is required'
     );
   });
 
@@ -167,7 +167,7 @@ describe('hetzner', () => {
 
       const provider = hetzner({ apiToken: 'tok', domain: 'nonexistent.com' });
       await expect(provider.getRecords('rm.nonexistent.com')).rejects.toThrow(
-        'no zone found for domain "nonexistent.com"'
+        'Hetzner: no zone found for domain "nonexistent.com"'
       );
     });
   });
@@ -194,7 +194,7 @@ describe('listHetznerZones', () => {
 
   it('throws if apiToken is missing', async () => {
     await expect(listHetznerZones('')).rejects.toThrow(
-      'apiToken is required'
+      'Hetzner: apiToken is required'
     );
   });
 });
