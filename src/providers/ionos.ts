@@ -158,6 +158,10 @@ export function ionos(options: IonosOptions): DnsProvider {
         }
       );
 
+      if (!Array.isArray(created) || created.length === 0) {
+        throw new Error('IONOS: record was created but API returned no records');
+      }
+
       const r = created[0]!;
       return {
         id: r.id,
