@@ -178,7 +178,7 @@ The package ships with two resolver implementations:
 | Resolver | Description |
 |----------|-------------|
 | `NativeDnsResolver` | Uses PHP's `dns_get_record()`. Can be slow on macOS (5-10s per query for non-existent records). |
-| `DigDnsResolver` | Uses `dig` with 3s timeout, caches results, queries `1.1.1.1` directly. Fast on all platforms. |
+| `DigDnsResolver` | Requires `dig` CLI (macOS/Linux). Uses 3s timeout, caches results, queries `1.1.1.1` by default. |
 
 Pass a resolver to `DnsChecker::check()` and `DnsProvisioner::provision()`:
 
@@ -186,4 +186,7 @@ Pass a resolver to `DnsChecker::check()` and `DnsProvisioner::provision()`:
 $resolver = new DigDnsResolver();
 $result = DnsChecker::check('example.com', $resolver);
 $provision = DnsProvisioner::provision('example.com', $provider, $resolver);
+
+// Use a different nameserver
+$resolver = new DigDnsResolver(nameserver: '8.8.8.8');
 ```

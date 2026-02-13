@@ -11,8 +11,8 @@ use RuleIo\Dns\Contracts\DnsResolver;
  * non-existent records. This resolver uses `dig` which returns
  * NXDOMAIN in ~30ms, and caches results to eliminate duplicate queries.
  *
- * Queries 1.1.1.1 directly to bypass local DNS caching (important
- * after provisioning — the local resolver may have stale negative cache).
+ * Requires the `dig` CLI tool (available by default on macOS and most Linux
+ * distributions; not available on Windows without manual installation).
  */
 class DigDnsResolver implements DnsResolver
 {
@@ -27,6 +27,10 @@ class DigDnsResolver implements DnsResolver
         DNS_TXT => 'TXT',
     ];
 
+    public function __construct(
+        private readonly string $nameserver = '1.1.1.1',
+    ) {}
+
     public function getRecord(string $hostname, int $type): array|false
     {
         $key = $hostname . ':' . $type;
@@ -40,9 +44,14 @@ class DigDnsResolver implements DnsResolver
         }
 
         $escaped = escapeshellarg($hostname);
-        $output = shell_exec("dig +short +time=3 +tries=1 @1.1.1.1 {$escaped} {$typeStr} 2>/dev/null");
+        $ns = escapeshellarg($this->nameserver);
+        $output = shell_exec("dig +short +time=3 +tries=1 @{$ns} {$escaped} {$typeStr} 2>/dev/null");
 
-        if ($output === null || trim($output) === '') {
+        if ($output === null) {
+            return $this->cache[$key] = false;
+        }
+
+        if (trim($output) === '') {
             return $this->cache[$key] = [];
         }
 

@@ -35,8 +35,9 @@ class LoopiaProvider implements DnsProvider
     {
         $subdomain = $this->toSubdomain($name);
 
-        // Ensure the subdomain zone exists — without it, records won't resolve
-        $this->call('addSubdomain', [$this->domain, $subdomain]);
+        // Ensure the subdomain zone exists — without it, records won't resolve.
+        // addSubdomain is idempotent (returns OK or DOMAIN_OCCUPIED).
+        $this->ensureSubdomain($subdomain);
 
         $result = $this->call('getZoneRecords', [$this->domain, $subdomain]);
 
@@ -56,12 +57,7 @@ class LoopiaProvider implements DnsProvider
     {
         $subdomain = $this->toSubdomain($record['name']);
 
-        // Loopia requires the subdomain zone to exist before records can resolve.
-        // addSubdomain is idempotent — returns OK if it already exists.
-        $subResult = $this->call('addSubdomain', [$this->domain, $subdomain]);
-        if ($subResult !== 'OK' && $subResult !== 'DOMAIN_OCCUPIED') {
-            throw new \RuntimeException("Loopia: addSubdomain failed: {$subResult}");
-        }
+        $this->ensureSubdomain($subdomain);
 
         $loopiaRecord = [
             'type' => $record['type'],
@@ -114,6 +110,14 @@ class LoopiaProvider implements DnsProvider
 
         if ($result !== 'OK') {
             throw new \RuntimeException("Loopia: removeZoneRecord failed: {$result}");
+        }
+    }
+
+    private function ensureSubdomain(string $subdomain): void
+    {
+        $result = $this->call('addSubdomain', [$this->domain, $subdomain]);
+        if ($result !== 'OK' && $result !== 'DOMAIN_OCCUPIED') {
+            throw new \RuntimeException("Loopia: addSubdomain failed: {$result}");
         }
     }
 
