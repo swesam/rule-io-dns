@@ -64,10 +64,13 @@ describe('LoopiaProvider', function () {
     describe('getRecords', function () {
         it('fetches records for a subdomain', function () {
             $history = [];
-            $client = loopiaClient($history, xmlRpcArray([
-                ['type' => 'CNAME', 'ttl' => 300, 'priority' => 0, 'rdata' => 'to.rulemailer.se', 'record_id' => 101],
-                ['type' => 'A', 'ttl' => 300, 'priority' => 0, 'rdata' => '1.2.3.4', 'record_id' => 102],
-            ]));
+            $client = loopiaClient($history,
+                xmlRpcOk('OK'), // addSubdomain
+                xmlRpcArray([   // getZoneRecords
+                    ['type' => 'CNAME', 'ttl' => 300, 'priority' => 0, 'rdata' => 'to.rulemailer.se', 'record_id' => 101],
+                    ['type' => 'A', 'ttl' => 300, 'priority' => 0, 'rdata' => '1.2.3.4', 'record_id' => 102],
+                ]),
+            );
 
             $provider = new LoopiaProvider(username: 'user', password: 'pass', domain: 'example.com', client: $client);
             $records = $provider->getRecords('rm.example.com');
@@ -77,15 +80,21 @@ describe('LoopiaProvider', function () {
                 ->and($records[0]->value)->toBe('to.rulemailer.se')
                 ->and($records[1]->id)->toBe('rm:102');
 
-            $body = (string) $history[0]['request']->getBody();
-            expect($body)->toContain('<methodName>getZoneRecords</methodName>')
-                ->and($body)->toContain('<string>user</string>')
-                ->and($body)->toContain('<string>pass</string>');
+            expect($history)->toHaveCount(2);
+            $addSubBody = (string) $history[0]['request']->getBody();
+            expect($addSubBody)->toContain('<methodName>addSubdomain</methodName>');
+            $getBody = (string) $history[1]['request']->getBody();
+            expect($getBody)->toContain('<methodName>getZoneRecords</methodName>')
+                ->and($getBody)->toContain('<string>user</string>')
+                ->and($getBody)->toContain('<string>pass</string>');
         });
 
         it('throws on error string response', function () {
             $history = [];
-            $client = loopiaClient($history, xmlRpcOk('UNKNOWN_ERROR'));
+            $client = loopiaClient($history,
+                xmlRpcOk('OK'),             // addSubdomain
+                xmlRpcOk('UNKNOWN_ERROR'),   // getZoneRecords
+            );
 
             $provider = new LoopiaProvider(username: 'user', password: 'pass', domain: 'example.com', client: $client);
             expect(fn () => $provider->getRecords('rm.example.com'))->toThrow(
@@ -118,8 +127,9 @@ describe('LoopiaProvider', function () {
         it('creates a record and returns the result', function () {
             $history = [];
             $client = loopiaClient($history,
-                xmlRpcOk('OK'),
-                xmlRpcArray([
+                xmlRpcOk('OK'),  // addSubdomain
+                xmlRpcOk('OK'),  // addZoneRecord
+                xmlRpcArray([    // getZoneRecords
                     ['type' => 'CNAME', 'ttl' => 300, 'priority' => 0, 'rdata' => 'to.rulemailer.se', 'record_id' => 201],
                 ]),
             );
@@ -131,12 +141,34 @@ describe('LoopiaProvider', function () {
 
             expect($result->id)->toBe('rm:201')
                 ->and($result->value)->toBe('to.rulemailer.se');
-            expect($history)->toHaveCount(2);
+            expect($history)->toHaveCount(3);
+        });
+
+        it('matches rdata with trailing dot', function () {
+            $history = [];
+            $client = loopiaClient($history,
+                xmlRpcOk('OK'),  // addSubdomain
+                xmlRpcOk('OK'),  // addZoneRecord
+                xmlRpcArray([    // getZoneRecords — Loopia returns trailing dot
+                    ['type' => 'CNAME', 'ttl' => 300, 'priority' => 0, 'rdata' => 'to.rulemailer.se.', 'record_id' => 202],
+                ]),
+            );
+
+            $provider = new LoopiaProvider(username: 'user', password: 'pass', domain: 'example.com', client: $client);
+            $result = $provider->createRecord([
+                'type' => 'CNAME', 'name' => 'rm.example.com', 'value' => 'to.rulemailer.se',
+            ]);
+
+            expect($result->id)->toBe('rm:202')
+                ->and($result->value)->toBe('to.rulemailer.se.');
         });
 
         it('throws when addZoneRecord returns non-OK', function () {
             $history = [];
-            $client = loopiaClient($history, xmlRpcOk('AUTH_ERROR'));
+            $client = loopiaClient($history,
+                xmlRpcOk('OK'),           // addSubdomain
+                xmlRpcOk('AUTH_ERROR'),    // addZoneRecord
+            );
 
             $provider = new LoopiaProvider(username: 'user', password: 'pass', domain: 'example.com', client: $client);
             expect(fn () => $provider->createRecord([
