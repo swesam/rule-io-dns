@@ -6,6 +6,5 @@
 /.gitattributes      export-ignore
 /.editorconfig       export-ignore
 /phpunit.xml         export-ignore
-/CHANGELOG.md        export-ignore
 /composer.lock       export-ignore
 /.phpunit.cache      export-ignore

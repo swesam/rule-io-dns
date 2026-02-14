@@ -68,6 +68,7 @@ $result->warnings;  // DnsWarning[]
 
 ```php
 use RuleIo\Dns\BindZoneExporter;
+use RuleIo\Dns\RequiredRecords;
 
 $records = RequiredRecords::get('example.com');
 $zone = BindZoneExporter::export($records);
