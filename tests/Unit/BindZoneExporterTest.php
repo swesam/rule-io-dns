@@ -144,6 +144,30 @@ it('handles trailing whitespace in MX values', function () {
     expect($output)->toContain("MX\t10 mail.example.com.");
 });
 
+it('normalizes tab-separated MX values to spaces', function () {
+    $records = [
+        new DnsRecord(type: 'MX', name: 'example.com', value: "10\tmail.example.com", purpose: 'mx'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain("MX\t10 mail.example.com.");
+});
+
+it('skips records with invalid type', function () {
+    $records = [
+        new DnsRecord(type: 'CNAME', name: 'rm.example.com', value: 'to.rulemailer.se', purpose: 'mx-spf'),
+        new DnsRecord(type: 'BAD TYPE!', name: 'evil.example.com', value: 'x', purpose: 'test'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+    $lines = explode("\n", trim($output));
+
+    expect($lines)->toHaveCount(1);
+    expect($output)->toContain('CNAME');
+    expect($output)->not->toContain('evil');
+});
+
 it('returns empty string for empty records', function () {
     expect(BindZoneExporter::export([]))->toBe('');
 });

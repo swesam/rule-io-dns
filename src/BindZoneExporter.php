@@ -26,6 +26,9 @@ class BindZoneExporter
             $name = self::sanitize($record->name);
             $name = str_ends_with($name, '.') ? $name : $name . '.';
             $type = strtoupper(self::sanitize($record->type));
+            if (!preg_match('/^[A-Z0-9]+$/', $type)) {
+                continue;
+            }
             $sanitizedValue = self::sanitize($record->value);
             $value = match ($type) {
                 'CNAME', 'NS', 'PTR' => str_ends_with($sanitizedValue, '.') ? $sanitizedValue : $sanitizedValue . '.',
