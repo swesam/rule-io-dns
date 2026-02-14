@@ -9,6 +9,7 @@ readonly class ProvisionResult
      * @param ProviderRecord[] $deleted
      * @param DnsRecord[] $skipped
      * @param DnsWarning[] $warnings
+     * @param ProviderRecord[] $updated
      */
     public function __construct(
         public string $domain,
@@ -16,5 +17,6 @@ readonly class ProvisionResult
         public array $deleted,
         public array $skipped,
         public array $warnings,
+        public array $updated = [],
     ) {}
 }

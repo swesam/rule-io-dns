@@ -31,6 +31,7 @@ class DnsChecker
 
         self::detectCnameConflict($resolver, $sendingDomain, $warnings);
         self::detectDkimConflict($resolver, $dkimDomain, $warnings);
+        self::detectCloudflareProxy($ns, $resolver, $domain, $sendingDomain, $dkimDomain, $mx, $spf, $dkim, $warnings);
         self::analyzeDmarc($dmarc, $sendingDomain, $warnings);
 
         $allPassed = $mx->status === DnsRecordStatus::Pass
@@ -253,6 +254,60 @@ class DnsChecker
                 severity: Severity::Error,
                 message: "Existing TXT records at {$dkimDomain} must be removed before adding the CNAME.",
             );
+        }
+    }
+
+    /**
+     * @param DnsWarning[] $warnings
+     */
+    private static function detectCloudflareProxy(
+        DnsRecordCheck $ns,
+        DnsResolver $resolver,
+        string $domain,
+        string $sendingDomain,
+        string $dkimDomain,
+        DnsRecordCheck $mx,
+        DnsRecordCheck $spf,
+        DnsRecordCheck $dkim,
+        array &$warnings,
+    ): void {
+        if ($ns->status !== DnsRecordStatus::Pass || !is_array($ns->actual)) {
+            return;
+        }
+
+        $isCloudflare = false;
+        foreach ($ns->actual as $nameserver) {
+            if (preg_match('/\.ns\.cloudflare\.com$/i', rtrim(strtolower($nameserver), '.')) === 1) {
+                $isCloudflare = true;
+                break;
+            }
+        }
+
+        if (!$isCloudflare) {
+            return;
+        }
+
+        // Detect wildcard DNS — if a random subdomain resolves, A records are not meaningful
+        if (self::safeHasRecords($resolver, '_cf-proxy-check.' . $domain, DNS_A)) {
+            return;
+        }
+
+        $cnameSubdomains = [];
+        if ($mx->status !== DnsRecordStatus::Pass || $spf->status !== DnsRecordStatus::Pass) {
+            $cnameSubdomains[] = $sendingDomain;
+        }
+        if ($dkim->status !== DnsRecordStatus::Pass) {
+            $cnameSubdomains[] = $dkimDomain;
+        }
+
+        foreach ($cnameSubdomains as $subdomain) {
+            if (self::safeHasRecords($resolver, $subdomain, DNS_A)) {
+                $warnings[] = new DnsWarning(
+                    code: 'CLOUDFLARE_PROXY_ENABLED',
+                    severity: Severity::Error,
+                    message: "A records found at {$subdomain} but no CNAME. If you've added a CNAME in Cloudflare, ensure the proxy is disabled (orange cloud → grey cloud) so the CNAME is visible to DNS lookups.",
+                );
+            }
         }
     }
 

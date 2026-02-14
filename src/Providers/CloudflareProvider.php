@@ -5,10 +5,11 @@ namespace RuleIo\Dns\Providers;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use RuleIo\Dns\Contracts\DnsProvider;
+use RuleIo\Dns\Contracts\UpdatableDnsProvider;
 use RuleIo\Dns\Data\ProviderRecord;
 use RuleIo\Dns\Domain;
 
-class CloudflareProvider implements DnsProvider
+class CloudflareProvider implements DnsProvider, UpdatableDnsProvider
 {
     private const API = 'https://api.cloudflare.com/client/v4';
 
@@ -42,6 +43,7 @@ class CloudflareProvider implements DnsProvider
             type: $r['type'],
             name: $r['name'],
             value: $r['content'],
+            proxied: $r['proxied'] ?? null,
         ), $data['result']);
     }
 
@@ -52,6 +54,7 @@ class CloudflareProvider implements DnsProvider
             'type' => $record['type'],
             'name' => $record['name'],
             'content' => $record['value'],
+            'proxied' => false,
         ]);
 
         return new ProviderRecord(
@@ -59,6 +62,21 @@ class CloudflareProvider implements DnsProvider
             type: $data['result']['type'],
             name: $data['result']['name'],
             value: $data['result']['content'],
+            proxied: $data['result']['proxied'] ?? null,
+        );
+    }
+
+    public function updateRecord(string $id, array $data): ProviderRecord
+    {
+        $zoneId = $this->resolveZoneId();
+        $response = $this->request('PATCH', "/zones/{$zoneId}/dns_records/{$id}", $data);
+
+        return new ProviderRecord(
+            id: $response['result']['id'],
+            type: $response['result']['type'],
+            name: $response['result']['name'],
+            value: $response['result']['content'],
+            proxied: $response['result']['proxied'] ?? null,
         );
     }
 
