@@ -43,6 +43,16 @@ it('exports MX records with trailing dots', function () {
     expect($output)->toContain("MX\t10 mail.example.com.");
 });
 
+it('exports MX records with tab-separated values', function () {
+    $records = [
+        new DnsRecord(type: 'MX', name: 'example.com', value: "10\tmail.example.com", purpose: 'mx'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain("MX\t10 mail.example.com.");
+});
+
 it('exports NS records with trailing dots', function () {
     $records = [
         new DnsRecord(type: 'NS', name: 'example.com', value: 'ns1.cloudflare.com', purpose: 'ns'),

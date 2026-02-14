@@ -42,7 +42,11 @@ class BindZoneExporter
 
     private static function sanitize(string $value): string
     {
-        return trim(preg_replace('/[\r\n\t]/', '', $value));
+        $value = str_replace("\t", ' ', $value);
+        $value = preg_replace('/[\r\n]/', '', $value);
+        $value = preg_replace('/ +/', ' ', $value);
+
+        return trim($value);
     }
 
     private static function ensureTrailingDotOnLastToken(string $value): string
