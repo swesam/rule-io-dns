@@ -476,7 +476,9 @@ describe('Cloudflare proxy detection', function () {
                 break;
             }
         }
-        expect($warning->message)->toContain('rm.example.com');
+        expect($warning->message)->toContain('rm.example.com')
+            ->and($warning->message)->toContain('A records found')
+            ->and($warning->message)->toContain('no CNAME');
     });
 
     it('warns for DKIM domain when Cloudflare NS + missing CNAME + A records exist', function () {

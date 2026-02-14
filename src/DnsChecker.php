@@ -299,7 +299,7 @@ class DnsChecker
                 $warnings[] = new DnsWarning(
                     code: 'CLOUDFLARE_PROXY_ENABLED',
                     severity: Severity::Error,
-                    message: "CNAME at {$subdomain} may be hidden behind Cloudflare proxy. Disable the proxy (orange cloud → grey cloud) for this record, or use auto-provisioning to fix it.",
+                    message: "A records found at {$subdomain} but no CNAME. If you've added a CNAME in Cloudflare, ensure the proxy is disabled (orange cloud → grey cloud) so the CNAME is visible to DNS lookups.",
                 );
             }
         }
