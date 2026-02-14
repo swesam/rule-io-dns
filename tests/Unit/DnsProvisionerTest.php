@@ -3,6 +3,7 @@
 use RuleIo\Dns\Constants;
 use RuleIo\Dns\Contracts\DnsProvider;
 use RuleIo\Dns\Contracts\DnsResolver;
+use RuleIo\Dns\Contracts\UpdatableDnsProvider;
 use RuleIo\Dns\Data\ProviderRecord;
 use RuleIo\Dns\DnsProvisioner;
 
@@ -29,6 +30,59 @@ function allPassingResolver(): DnsResolver
                 $hostname === '_dmarc.example.com' && $type === DNS_TXT => [['txt' => 'v=DMARC1; p=none; rua=mailto:dmarc@rule.se; ruf=mailto:authfail@rule.se']],
                 default => false,
             };
+        }
+    };
+}
+
+function createUpdatableMockProvider(array $existing = []): DnsProvider&UpdatableDnsProvider
+{
+    return new class($existing) implements DnsProvider, UpdatableDnsProvider {
+        public array $created = [];
+        public array $deletedIds = [];
+        public array $updatedCalls = [];
+        private int $nextId = 1;
+
+        public function __construct(private readonly array $existing) {}
+
+        public function getRecords(string $name): array
+        {
+            return $this->existing[$name] ?? [];
+        }
+
+        public function createRecord(array $record): ProviderRecord
+        {
+            $this->created[] = $record;
+            return new ProviderRecord(
+                id: 'new-' . $this->nextId++,
+                type: $record['type'],
+                name: $record['name'],
+                value: $record['value'],
+            );
+        }
+
+        public function deleteRecord(string $id): void
+        {
+            $this->deletedIds[] = $id;
+        }
+
+        public function updateRecord(string $id, array $data): ProviderRecord
+        {
+            $this->updatedCalls[] = ['id' => $id, 'data' => $data];
+            // Find the record and return it with proxied set to false
+            foreach ($this->existing as $records) {
+                foreach ($records as $r) {
+                    if ($r->id === $id) {
+                        return new ProviderRecord(
+                            id: $r->id,
+                            type: $r->type,
+                            name: $r->name,
+                            value: $r->value,
+                            proxied: $data['proxied'] ?? $r->proxied,
+                        );
+                    }
+                }
+            }
+            return new ProviderRecord(id: $id, type: 'CNAME', name: '', value: '', proxied: false);
         }
     };
 }
@@ -155,6 +209,63 @@ it('deletes multiple conflicting records at the same name', function () {
     expect($result->deleted)->toHaveCount(2)
         ->and($provider->deletedIds)->toContain('old-a')
         ->and($provider->deletedIds)->toContain('old-txt');
+});
+
+it('calls updateRecord to disable proxy on correct-but-proxied records', function () {
+    $provider = createUpdatableMockProvider([
+        'rm.example.com' => [
+            new ProviderRecord(
+                id: 'cf-1',
+                type: 'CNAME',
+                name: 'rm.example.com',
+                value: Constants::RULE_CNAME_TARGET,
+                proxied: true,
+            ),
+        ],
+    ]);
+    $result = DnsProvisioner::provision('example.com', $provider, allMissingResolver());
+
+    expect($provider->updatedCalls)->toHaveCount(1)
+        ->and($provider->updatedCalls[0]['id'])->toBe('cf-1')
+        ->and($provider->updatedCalls[0]['data'])->toBe(['proxied' => false])
+        ->and($result->updated)->toHaveCount(1)
+        ->and($result->updated[0]->id)->toBe('cf-1')
+        ->and($result->updated[0]->proxied)->toBeFalse();
+});
+
+it('does not call updateRecord when proxied is false', function () {
+    $provider = createUpdatableMockProvider([
+        'rm.example.com' => [
+            new ProviderRecord(
+                id: 'cf-1',
+                type: 'CNAME',
+                name: 'rm.example.com',
+                value: Constants::RULE_CNAME_TARGET,
+                proxied: false,
+            ),
+        ],
+    ]);
+    $result = DnsProvisioner::provision('example.com', $provider, allMissingResolver());
+
+    expect($provider->updatedCalls)->toHaveCount(0)
+        ->and($result->updated)->toHaveCount(0);
+});
+
+it('does not call updateRecord on non-updatable provider even if proxied', function () {
+    $provider = createMockProvider([
+        'rm.example.com' => [
+            new ProviderRecord(
+                id: 'cf-1',
+                type: 'CNAME',
+                name: 'rm.example.com',
+                value: Constants::RULE_CNAME_TARGET,
+                proxied: true,
+            ),
+        ],
+    ]);
+    $result = DnsProvisioner::provision('example.com', $provider, allMissingResolver());
+
+    expect($result->updated)->toHaveCount(0);
 });
 
 it('treats trailing-dot FQDN values as equivalent', function () {

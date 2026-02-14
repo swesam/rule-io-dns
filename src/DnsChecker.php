@@ -31,6 +31,7 @@ class DnsChecker
 
         self::detectCnameConflict($resolver, $sendingDomain, $warnings);
         self::detectDkimConflict($resolver, $dkimDomain, $warnings);
+        self::detectCloudflareProxy($ns, $resolver, $sendingDomain, $dkimDomain, $mx, $spf, $dkim, $warnings);
         self::analyzeDmarc($dmarc, $sendingDomain, $warnings);
 
         $allPassed = $mx->status === DnsRecordStatus::Pass
@@ -253,6 +254,54 @@ class DnsChecker
                 severity: Severity::Error,
                 message: "Existing TXT records at {$dkimDomain} must be removed before adding the CNAME.",
             );
+        }
+    }
+
+    /**
+     * @param DnsWarning[] $warnings
+     */
+    private static function detectCloudflareProxy(
+        DnsRecordCheck $ns,
+        DnsResolver $resolver,
+        string $sendingDomain,
+        string $dkimDomain,
+        DnsRecordCheck $mx,
+        DnsRecordCheck $spf,
+        DnsRecordCheck $dkim,
+        array &$warnings,
+    ): void {
+        if ($ns->status !== DnsRecordStatus::Pass || !is_array($ns->actual)) {
+            return;
+        }
+
+        $isCloudflare = false;
+        foreach ($ns->actual as $nameserver) {
+            if (preg_match('/\.ns\.cloudflare\.com$/i', rtrim(strtolower($nameserver), '.')) === 1) {
+                $isCloudflare = true;
+                break;
+            }
+        }
+
+        if (!$isCloudflare) {
+            return;
+        }
+
+        $cnameSubdomains = [];
+        if ($mx->status !== DnsRecordStatus::Pass || $spf->status !== DnsRecordStatus::Pass) {
+            $cnameSubdomains[] = $sendingDomain;
+        }
+        if ($dkim->status !== DnsRecordStatus::Pass) {
+            $cnameSubdomains[] = $dkimDomain;
+        }
+
+        foreach ($cnameSubdomains as $subdomain) {
+            if (self::safeHasRecords($resolver, $subdomain, DNS_A)) {
+                $warnings[] = new DnsWarning(
+                    code: 'CLOUDFLARE_PROXY_ENABLED',
+                    severity: Severity::Error,
+                    message: "CNAME at {$subdomain} may be hidden behind Cloudflare proxy. Disable the proxy (orange cloud → grey cloud) for this record, or use auto-provisioning to fix it.",
+                );
+            }
         }
     }
 

@@ -9,5 +9,6 @@ readonly class ProviderRecord
         public string $type,
         public string $name,
         public string $value,
+        public ?bool $proxied = null,
     ) {}
 }

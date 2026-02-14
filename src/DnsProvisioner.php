@@ -4,6 +4,7 @@ namespace RuleIo\Dns;
 
 use RuleIo\Dns\Contracts\DnsProvider;
 use RuleIo\Dns\Contracts\DnsResolver;
+use RuleIo\Dns\Contracts\UpdatableDnsProvider;
 use RuleIo\Dns\Data\DnsRecord;
 use RuleIo\Dns\Data\ProvisionResult;
 
@@ -17,6 +18,7 @@ class DnsProvisioner
         $created = [];
         $deleted = [];
         $skipped = [];
+        $updated = [];
 
         // All 3 required records (if all pass, $required is empty → everything is skipped)
         $allRecords = RequiredRecords::get($input);
@@ -47,16 +49,16 @@ class DnsProvisioner
             }
 
             // Check if the correct record already exists from the provider's perspective
-            $alreadyExists = false;
+            $matchingRecord = null;
             foreach ($existing as $ex) {
                 if (strtoupper($ex->type) === $record->type
                     && self::normalizeDnsValue($ex->value) === self::normalizeDnsValue($record->value)) {
-                    $alreadyExists = true;
+                    $matchingRecord = $ex;
                     break;
                 }
             }
 
-            if (!$alreadyExists) {
+            if ($matchingRecord === null) {
                 $provider->createRecord([
                     'type' => $record->type,
                     'name' => $record->name,
@@ -64,6 +66,9 @@ class DnsProvisioner
                 ]);
                 $created[] = $record;
             } else {
+                if ($matchingRecord->proxied === true && $provider instanceof UpdatableDnsProvider) {
+                    $updated[] = $provider->updateRecord($matchingRecord->id, ['proxied' => false]);
+                }
                 $skipped[] = $record;
             }
         }
@@ -74,6 +79,7 @@ class DnsProvisioner
             deleted: $deleted,
             skipped: $skipped,
             warnings: $checkResult->warnings,
+            updated: $updated,
         );
     }
 

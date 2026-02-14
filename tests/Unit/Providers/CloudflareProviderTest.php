@@ -94,7 +94,45 @@ describe('CloudflareProvider', function () {
                 'type' => 'CNAME',
                 'name' => 'rm.example.com',
                 'content' => 'to.rulemailer.se',
+                'proxied' => false,
             ]);
+        });
+
+        it('getRecords returns proxied field', function () {
+            $history = [];
+            $client = cfClient($history, cfResponse([
+                ['id' => 'r1', 'type' => 'CNAME', 'name' => 'rm.example.com', 'content' => 'to.rulemailer.se', 'proxied' => true],
+                ['id' => 'r2', 'type' => 'A', 'name' => 'rm.example.com', 'content' => '1.2.3.4', 'proxied' => false],
+            ]));
+
+            $provider = new CloudflareProvider(apiToken: 'tok', zoneId: 'z1', client: $client);
+            $records = $provider->getRecords('rm.example.com');
+
+            expect($records[0]->proxied)->toBeTrue()
+                ->and($records[1]->proxied)->toBeFalse();
+        });
+
+        it('updateRecord sends PATCH request', function () {
+            $history = [];
+            $client = cfClient($history, cfResponse([
+                'id' => 'r1',
+                'type' => 'CNAME',
+                'name' => 'rm.example.com',
+                'content' => 'to.rulemailer.se',
+                'proxied' => false,
+            ]));
+
+            $provider = new CloudflareProvider(apiToken: 'tok', zoneId: 'z1', client: $client);
+            $result = $provider->updateRecord('r1', ['proxied' => false]);
+
+            expect($result->id)->toBe('r1')
+                ->and($result->proxied)->toBeFalse();
+
+            $request = $history[0]['request'];
+            expect($request->getMethod())->toBe('PATCH')
+                ->and((string) $request->getUri())->toContain('/zones/z1/dns_records/r1');
+            $body = json_decode((string) $request->getBody(), true);
+            expect($body)->toBe(['proxied' => false]);
         });
 
         it('deleteRecord sends DELETE request', function () {

@@ -454,6 +454,91 @@ describe('DMARC analysis warnings', function () {
     });
 });
 
+describe('Cloudflare proxy detection', function () {
+    it('warns when Cloudflare NS + missing CNAME + A records exist at sending domain', function () {
+        $resolver = mockResolver([
+            'example.com' => [
+                DNS_NS => [['target' => 'ada.ns.cloudflare.com'], ['target' => 'bob.ns.cloudflare.com']],
+            ],
+            'rm.example.com' => [
+                DNS_A => [['ip' => '104.21.0.1']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $codes = array_map(fn ($w) => $w->code, $result->warnings);
+        expect($codes)->toContain('CLOUDFLARE_PROXY_ENABLED');
+
+        $warning = null;
+        foreach ($result->warnings as $w) {
+            if ($w->code === 'CLOUDFLARE_PROXY_ENABLED') {
+                $warning = $w;
+                break;
+            }
+        }
+        expect($warning->message)->toContain('rm.example.com');
+    });
+
+    it('warns for DKIM domain when Cloudflare NS + missing CNAME + A records exist', function () {
+        $resolver = mockResolver([
+            'example.com' => [
+                DNS_NS => [['target' => 'ada.ns.cloudflare.com']],
+            ],
+            'keyse._domainkey.example.com' => [
+                DNS_A => [['ip' => '104.21.0.1']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $proxyWarnings = array_values(array_filter($result->warnings, fn ($w) => $w->code === 'CLOUDFLARE_PROXY_ENABLED'));
+        expect($proxyWarnings)->not->toBeEmpty();
+
+        $hasDkim = false;
+        foreach ($proxyWarnings as $w) {
+            if (str_contains($w->message, 'keyse._domainkey.example.com')) {
+                $hasDkim = true;
+            }
+        }
+        expect($hasDkim)->toBeTrue();
+    });
+
+    it('does not warn for non-Cloudflare nameservers', function () {
+        $resolver = mockResolver([
+            'example.com' => [
+                DNS_NS => [['target' => 'ns1.hetzner.com'], ['target' => 'ns2.hetzner.com']],
+            ],
+            'rm.example.com' => [
+                DNS_A => [['ip' => '1.2.3.4']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $codes = array_map(fn ($w) => $w->code, $result->warnings);
+        expect($codes)->not->toContain('CLOUDFLARE_PROXY_ENABLED');
+    });
+
+    it('does not warn when CNAME checks pass (proxy not an issue)', function () {
+        $resolver = mockResolver([
+            'example.com' => [
+                DNS_NS => [['target' => 'ada.ns.cloudflare.com']],
+            ],
+            'rm.example.com' => [
+                DNS_CNAME => [['target' => Constants::RULE_CNAME_TARGET]],
+            ],
+            'keyse._domainkey.example.com' => [
+                DNS_CNAME => [['target' => Constants::RULE_DKIM_TARGET]],
+            ],
+            '_dmarc.example.com' => [
+                DNS_TXT => [['txt' => 'v=DMARC1; p=none']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $codes = array_map(fn ($w) => $w->code, $result->warnings);
+        expect($codes)->not->toContain('CLOUDFLARE_PROXY_ENABLED');
+    });
+});
+
 describe('warnings array', function () {
     it('returns empty warnings when no issues found', function () {
         $resolver = mockResolver([
