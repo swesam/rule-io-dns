@@ -19,7 +19,7 @@ it('returns all 3 records when no checkResult provided', function () {
         ->and($records[1]->value)->toBe(Constants::RULE_DKIM_TARGET)
         ->and($records[1]->purpose)->toBe('dkim')
         ->and($records[2]->type)->toBe('TXT')
-        ->and($records[2]->name)->toBe('_dmarc.rm.example.com')
+        ->and($records[2]->name)->toBe('_dmarc.example.com')
         ->and($records[2]->value)->toBe(Constants::RULE_DMARC_POLICY)
         ->and($records[2]->purpose)->toBe('dmarc');
 });

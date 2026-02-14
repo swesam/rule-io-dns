@@ -26,7 +26,7 @@ function allPassingResolver(): DnsResolver
                 $hostname === 'rm.example.com' && $type === DNS_MX => [['target' => Constants::RULE_MX_HOST, 'pri' => 10]],
                 $hostname === 'rm.example.com' && $type === DNS_CNAME => [['target' => Constants::RULE_CNAME_TARGET]],
                 $hostname === 'keyse._domainkey.example.com' && $type === DNS_CNAME => [['target' => Constants::RULE_DKIM_TARGET]],
-                $hostname === '_dmarc.rm.example.com' && $type === DNS_TXT => [['txt' => 'v=DMARC1; p=none; rua=mailto:dmarc@rule.se; ruf=mailto:authfail@rule.se']],
+                $hostname === '_dmarc.example.com' && $type === DNS_TXT => [['txt' => 'v=DMARC1; p=none; rua=mailto:dmarc@rule.se; ruf=mailto:authfail@rule.se']],
                 default => false,
             };
         }
@@ -77,7 +77,7 @@ it('creates all 3 records when everything is missing', function () {
     expect($provider->created)->toHaveCount(3)
         ->and($provider->created[0])->toBe(['type' => 'CNAME', 'name' => 'rm.example.com', 'value' => Constants::RULE_CNAME_TARGET])
         ->and($provider->created[1])->toBe(['type' => 'CNAME', 'name' => 'keyse._domainkey.example.com', 'value' => Constants::RULE_DKIM_TARGET])
-        ->and($provider->created[2])->toBe(['type' => 'TXT', 'name' => '_dmarc.rm.example.com', 'value' => Constants::RULE_DMARC_POLICY]);
+        ->and($provider->created[2])->toBe(['type' => 'TXT', 'name' => '_dmarc.example.com', 'value' => Constants::RULE_DMARC_POLICY]);
 });
 
 it('skips all records when everything passes', function () {

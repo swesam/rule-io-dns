@@ -28,7 +28,7 @@ it('returns allPassed: true when all records are correct', function () {
         'keyse._domainkey.example.com' => [
             DNS_CNAME => [['target' => Constants::RULE_DKIM_TARGET]],
         ],
-        '_dmarc.rm.example.com' => [
+        '_dmarc.example.com' => [
             DNS_TXT => [['txt' => 'v=DMARC1; p=none; rua=mailto:dmarc@rule.se; ruf=mailto:authfail@rule.se']],
         ],
     ]);
@@ -201,10 +201,10 @@ describe('DKIM check', function () {
 });
 
 describe('DMARC check', function () {
-    it('returns pass when DMARC record exists at subdomain', function () {
+    it('returns pass when DMARC record exists at org domain', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
-            '_dmarc.rm.example.com' => [
+            '_dmarc.example.com' => [
                 DNS_TXT => [['txt' => 'v=DMARC1; p=reject']],
             ],
         ]);
@@ -222,7 +222,7 @@ describe('DMARC check', function () {
     it('returns missing when TXT exists but no DMARC', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
-            '_dmarc.rm.example.com' => [
+            '_dmarc.example.com' => [
                 DNS_TXT => [['txt' => 'some-other-txt-record']],
             ],
         ]);
@@ -239,7 +239,7 @@ it('allPassed is false when any check fails', function () {
             DNS_MX => [['target' => Constants::RULE_MX_HOST, 'pri' => 10]],
             DNS_CNAME => [['target' => Constants::RULE_CNAME_TARGET]],
         ],
-        '_dmarc.rm.example.com' => [
+        '_dmarc.example.com' => [
             DNS_TXT => [['txt' => 'v=DMARC1; p=none']],
         ],
         // DKIM missing
@@ -346,10 +346,10 @@ describe('DKIM conflict detection', function () {
 });
 
 describe('DMARC analysis warnings', function () {
-    it('stores raw existing DMARC record from subdomain', function () {
+    it('stores raw existing DMARC record from org domain', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
-            '_dmarc.rm.example.com' => [
+            '_dmarc.example.com' => [
                 DNS_TXT => [['txt' => 'v=DMARC1; p=none']],
             ],
         ]);
@@ -465,7 +465,7 @@ describe('warnings array', function () {
             'keyse._domainkey.example.com' => [
                 DNS_CNAME => [['target' => Constants::RULE_DKIM_TARGET]],
             ],
-            '_dmarc.rm.example.com' => [
+            '_dmarc.example.com' => [
                 DNS_TXT => [['txt' => 'v=DMARC1; p=none; rua=mailto:dmarc@rule.se']],
             ],
         ]);
