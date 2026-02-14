@@ -25,7 +25,7 @@ class BindZoneExporter
         foreach ($records as $record) {
             $name = self::sanitize($record->name);
             $name = str_ends_with($name, '.') ? $name : $name . '.';
-            $type = strtoupper($record->type);
+            $type = strtoupper(self::sanitize($record->type));
             $sanitizedValue = self::sanitize($record->value);
             $value = match ($type) {
                 'CNAME', 'NS', 'PTR' => str_ends_with($sanitizedValue, '.') ? $sanitizedValue : $sanitizedValue . '.',
