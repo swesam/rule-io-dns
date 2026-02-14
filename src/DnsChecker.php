@@ -31,7 +31,7 @@ class DnsChecker
 
         self::detectCnameConflict($resolver, $sendingDomain, $warnings);
         self::detectDkimConflict($resolver, $dkimDomain, $warnings);
-        self::detectCloudflareProxy($ns, $resolver, $sendingDomain, $dkimDomain, $mx, $spf, $dkim, $warnings);
+        self::detectCloudflareProxy($ns, $resolver, $domain, $sendingDomain, $dkimDomain, $mx, $spf, $dkim, $warnings);
         self::analyzeDmarc($dmarc, $sendingDomain, $warnings);
 
         $allPassed = $mx->status === DnsRecordStatus::Pass
@@ -263,6 +263,7 @@ class DnsChecker
     private static function detectCloudflareProxy(
         DnsRecordCheck $ns,
         DnsResolver $resolver,
+        string $domain,
         string $sendingDomain,
         string $dkimDomain,
         DnsRecordCheck $mx,
@@ -283,6 +284,11 @@ class DnsChecker
         }
 
         if (!$isCloudflare) {
+            return;
+        }
+
+        // Detect wildcard DNS — if a random subdomain resolves, A records are not meaningful
+        if (self::safeHasRecords($resolver, '_cf-proxy-check.' . $domain, DNS_A)) {
             return;
         }
 
