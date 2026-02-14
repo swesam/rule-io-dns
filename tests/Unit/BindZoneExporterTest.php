@@ -35,12 +35,12 @@ it('escapes quotes and backslashes in TXT values', function () {
 
 it('exports MX records with trailing dots', function () {
     $records = [
-        new DnsRecord(type: 'MX', name: 'example.com', value: 'mail.example.com', purpose: 'mx'),
+        new DnsRecord(type: 'MX', name: 'example.com', value: '10 mail.example.com', purpose: 'mx'),
     ];
 
     $output = BindZoneExporter::export($records);
 
-    expect($output)->toContain("MX\tmail.example.com.");
+    expect($output)->toContain("MX\t10 mail.example.com.");
 });
 
 it('exports NS records with trailing dots', function () {

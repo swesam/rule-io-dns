@@ -26,7 +26,8 @@ class BindZoneExporter
             $name = str_ends_with($record->name, '.') ? $record->name : $record->name . '.';
             $type = strtoupper($record->type);
             $value = match ($type) {
-                'CNAME', 'MX', 'NS', 'PTR', 'SRV' => str_ends_with($record->value, '.') ? $record->value : $record->value . '.',
+                'CNAME', 'NS', 'PTR' => str_ends_with($record->value, '.') ? $record->value : $record->value . '.',
+                'MX', 'SRV' => self::ensureTrailingDotOnLastToken($record->value),
                 'TXT' => '"' . addcslashes($record->value, '"\\') . '"',
                 default => $record->value,
             };
@@ -35,5 +36,19 @@ class BindZoneExporter
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    private static function ensureTrailingDotOnLastToken(string $value): string
+    {
+        $pos = strrpos($value, ' ');
+
+        if ($pos === false) {
+            return str_ends_with($value, '.') ? $value : $value . '.';
+        }
+
+        $prefix = substr($value, 0, $pos + 1);
+        $hostname = substr($value, $pos + 1);
+
+        return $prefix . (str_ends_with($hostname, '.') ? $hostname : $hostname . '.');
     }
 }
