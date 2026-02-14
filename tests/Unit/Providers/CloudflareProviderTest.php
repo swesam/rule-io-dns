@@ -74,6 +74,7 @@ describe('CloudflareProvider', function () {
                 'type' => 'CNAME',
                 'name' => 'rm.example.com',
                 'content' => 'to.rulemailer.se',
+                'proxied' => false,
             ]));
 
             $provider = new CloudflareProvider(apiToken: 'tok', zoneId: 'z1', client: $client);
@@ -84,7 +85,8 @@ describe('CloudflareProvider', function () {
             ]);
 
             expect($result->id)->toBe('new-1')
-                ->and($result->value)->toBe('to.rulemailer.se');
+                ->and($result->value)->toBe('to.rulemailer.se')
+                ->and($result->proxied)->toBeFalse();
 
             $request = $history[0]['request'];
             expect($request->getMethod())->toBe('POST')
