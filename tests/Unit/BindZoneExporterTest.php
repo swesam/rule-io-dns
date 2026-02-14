@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use RuleIo\Dns\BindZoneExporter;
 use RuleIo\Dns\Data\DnsRecord;
 

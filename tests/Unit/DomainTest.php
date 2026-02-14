@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use RuleIo\Dns\Domain;
 
 it('returns bare domain as-is', function () {

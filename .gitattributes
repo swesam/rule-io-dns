@@ -1,0 +1,10 @@
+/tests               export-ignore
+/dist                export-ignore
+/node_modules        export-ignore
+/.github             export-ignore
+/.gitignore          export-ignore
+/.gitattributes      export-ignore
+/.editorconfig       export-ignore
+/phpunit.xml         export-ignore
+/composer.lock       export-ignore
+/.phpunit.cache      export-ignore

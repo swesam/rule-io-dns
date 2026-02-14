@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns;
 
 use RuleIo\Dns\Contracts\DnsResolver;
@@ -12,6 +14,12 @@ use RuleIo\Dns\Data\Severity;
 
 class DnsChecker
 {
+    /**
+     * Check DNS records for a domain against Rule.io's required configuration.
+     *
+     * @param string $input Domain name, email address, or URL to check
+     * @param DnsResolver|null $resolver Resolver to use (defaults to NativeDnsResolver)
+     */
     public static function check(string $input, ?DnsResolver $resolver = null): DnsCheckResult
     {
         $resolver ??= new NativeDnsResolver();

@@ -60,7 +60,36 @@ $result = DnsProvisioner::provision('example.com', $provider);
 $result->created;   // DnsRecord[]
 $result->deleted;   // ProviderRecord[] (conflicting records removed)
 $result->skipped;   // DnsRecord[] (already correct)
+$result->updated;   // ProviderRecord[] (e.g. Cloudflare proxy disabled)
 $result->warnings;  // DnsWarning[]
+```
+
+### Export as BIND zone file
+
+```php
+use RuleIo\Dns\BindZoneExporter;
+use RuleIo\Dns\RequiredRecords;
+
+$records = RequiredRecords::get('example.com');
+$zone = BindZoneExporter::export($records);
+
+// Output:
+// rm.example.com.	3600	IN	CNAME	to.rulemailer.se.
+// rule._domainkey.example.com.	3600	IN	CNAME	rule.domainkey.rulemailer.se.
+// _dmarc.example.com.	3600	IN	TXT	"v=DMARC1; p=none;"
+```
+
+### Parse DMARC records
+
+```php
+use RuleIo\Dns\DmarcParser;
+
+$dmarc = DmarcParser::parse('v=DMARC1; p=reject; rua=mailto:dmarc@example.com; aspf=s');
+
+$dmarc->p;     // "reject"
+$dmarc->aspf;  // "s"
+$dmarc->rua;   // ["dmarc@example.com"]
+$dmarc->adkim; // null (not set)
 ```
 
 ## Supported Providers
