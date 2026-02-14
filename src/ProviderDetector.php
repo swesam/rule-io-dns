@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns;
 
 use RuleIo\Dns\Data\DetectedProvider;
@@ -18,7 +20,10 @@ class ProviderDetector
     ];
 
     /**
-     * @param string[] $nameservers
+     * Detect which DNS provider hosts a domain based on its nameservers.
+     *
+     * @param string[] $nameservers List of nameserver hostnames (e.g. from NS lookup)
+     * @return DetectedProvider|null Matched provider, or null if unrecognized
      */
     public static function detect(array $nameservers): ?DetectedProvider
     {

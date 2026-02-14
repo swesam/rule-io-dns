@@ -1,11 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns;
 
 use RuleIo\Dns\Data\DmarcRecord;
 
 class DmarcParser
 {
+    /**
+     * Parse a raw DMARC TXT record string into a structured DmarcRecord.
+     *
+     * @param string $raw The raw DMARC TXT record value (e.g. "v=DMARC1; p=reject; ...")
+     * @return DmarcRecord|null Parsed record, or null if invalid
+     */
     public static function parse(string $raw): ?DmarcRecord
     {
         $trimmed = trim($raw);

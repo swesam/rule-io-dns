@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns\Contracts;
 
 use RuleIo\Dns\Data\ProviderRecord;

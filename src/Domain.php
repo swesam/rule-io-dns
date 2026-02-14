@@ -1,9 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns;
 
 class Domain
 {
+    /**
+     * Extract and normalize a bare domain from user input (URL, email, or domain string).
+     */
     public static function clean(string $input): string
     {
         $domain = strtolower(trim($input));

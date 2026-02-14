@@ -3,6 +3,10 @@
     "description": "DNS validation, record generation, and auto-provisioning for Rule.io email setup",
     "type": "library",
     "license": "MIT",
+    "keywords": ["dns", "email", "dkim", "spf", "dmarc", "cloudflare", "provisioning"],
+    "authors": [
+        {"name": "Sam"}
+    ],
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.0"
@@ -25,6 +29,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true
         }
+    },
+    "scripts": {
+        "test": "pest"
     },
     "minimum-stability": "stable"
 }

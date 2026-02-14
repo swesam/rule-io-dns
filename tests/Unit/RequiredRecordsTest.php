@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use RuleIo\Dns\Constants;
 use RuleIo\Dns\Data\DnsCheckResult;
 use RuleIo\Dns\Data\DnsChecks;

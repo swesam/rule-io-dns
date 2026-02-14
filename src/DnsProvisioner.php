@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace RuleIo\Dns;
 
 use RuleIo\Dns\Contracts\DnsProvider;
@@ -10,6 +12,16 @@ use RuleIo\Dns\Data\ProvisionResult;
 
 class DnsProvisioner
 {
+    /**
+     * Provision the required DNS records for Rule.io email sending.
+     *
+     * Creates missing records, deletes conflicting ones, and disables
+     * Cloudflare proxy on existing records when applicable.
+     *
+     * @param string $input Domain name, email address, or URL to provision
+     * @param DnsProvider $provider The DNS provider to create/delete records through
+     * @param DnsResolver|null $resolver Resolver to use for pre-check (defaults to NativeDnsResolver)
+     */
     public static function provision(string $input, DnsProvider $provider, ?DnsResolver $resolver = null): ProvisionResult
     {
         $checkResult = DnsChecker::check($input, $resolver);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use RuleIo\Dns\DmarcParser;
 
 it('parses a minimal record', function () {
