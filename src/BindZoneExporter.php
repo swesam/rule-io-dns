@@ -23,13 +23,15 @@ class BindZoneExporter
         $lines = [];
 
         foreach ($records as $record) {
-            $name = str_ends_with($record->name, '.') ? $record->name : $record->name . '.';
+            $name = self::sanitize($record->name);
+            $name = str_ends_with($name, '.') ? $name : $name . '.';
             $type = strtoupper($record->type);
+            $sanitizedValue = self::sanitize($record->value);
             $value = match ($type) {
-                'CNAME', 'NS', 'PTR' => str_ends_with($record->value, '.') ? $record->value : $record->value . '.',
-                'MX', 'SRV' => self::ensureTrailingDotOnLastToken($record->value),
-                'TXT' => '"' . addcslashes($record->value, '"\\') . '"',
-                default => $record->value,
+                'CNAME', 'NS', 'PTR' => str_ends_with($sanitizedValue, '.') ? $sanitizedValue : $sanitizedValue . '.',
+                'MX', 'SRV' => self::ensureTrailingDotOnLastToken($sanitizedValue),
+                'TXT' => '"' . addcslashes($sanitizedValue, '"\\') . '"',
+                default => $sanitizedValue,
             };
 
             $lines[] = "{$name}\t{$ttl}\tIN\t{$type}\t{$value}";
@@ -38,8 +40,14 @@ class BindZoneExporter
         return implode("\n", $lines) . "\n";
     }
 
+    private static function sanitize(string $value): string
+    {
+        return trim(preg_replace('/[\r\n\t]/', '', $value));
+    }
+
     private static function ensureTrailingDotOnLastToken(string $value): string
     {
+        $value = rtrim($value);
         $pos = strrpos($value, ' ');
 
         if ($pos === false) {

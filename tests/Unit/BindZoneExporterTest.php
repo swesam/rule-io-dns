@@ -101,6 +101,39 @@ it('does not double trailing dots', function () {
     expect($output)->toBe("rm.example.com.\t3600\tIN\tCNAME\tto.rulemailer.se.\n");
 });
 
+it('strips control characters from values', function () {
+    $records = [
+        new DnsRecord(type: 'TXT', name: "test.example.com", value: "v=spf1\r\ninclude:evil.com", purpose: 'spf'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->not->toContain("\r");
+    expect($output)->not->toContain("\n\n");
+    expect($output)->toContain('v=spf1include:evil.com');
+});
+
+it('strips control characters from names', function () {
+    $records = [
+        new DnsRecord(type: 'CNAME', name: "evil\n.example.com", value: 'to.rulemailer.se', purpose: 'mx-spf'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->not->toContain("\n\n");
+    expect($output)->toContain('evil.example.com.');
+});
+
+it('handles trailing whitespace in MX values', function () {
+    $records = [
+        new DnsRecord(type: 'MX', name: 'example.com', value: '10 mail.example.com  ', purpose: 'mx'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain("MX\t10 mail.example.com.");
+});
+
 it('returns empty string for empty records', function () {
     expect(BindZoneExporter::export([]))->toBe('');
 });
