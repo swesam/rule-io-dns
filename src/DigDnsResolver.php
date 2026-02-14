@@ -5,19 +5,17 @@ namespace RuleIo\Dns;
 use RuleIo\Dns\Contracts\DnsResolver;
 
 /**
- * DNS resolver using `dig` with short timeouts and result caching.
+ * DNS resolver using `dig` with short timeouts.
  *
  * PHP's dns_get_record() on macOS can block 5-10s per query for
  * non-existent records. This resolver uses `dig` which returns
- * NXDOMAIN in ~30ms, and caches results to eliminate duplicate queries.
+ * NXDOMAIN in ~30ms.
  *
  * Requires the `dig` CLI tool (available by default on macOS and most Linux
  * distributions; not available on Windows without manual installation).
  */
 class DigDnsResolver implements DnsResolver
 {
-    private array $cache = [];
-
     private const TYPE_MAP = [
         DNS_A => 'A',
         DNS_AAAA => 'AAAA',
@@ -33,14 +31,9 @@ class DigDnsResolver implements DnsResolver
 
     public function getRecord(string $hostname, int $type): array|false
     {
-        $key = $hostname . ':' . $type;
-        if (array_key_exists($key, $this->cache)) {
-            return $this->cache[$key];
-        }
-
         $typeStr = self::TYPE_MAP[$type] ?? null;
         if ($typeStr === null) {
-            return $this->cache[$key] = false;
+            return false;
         }
 
         $escaped = escapeshellarg($hostname);
@@ -48,11 +41,11 @@ class DigDnsResolver implements DnsResolver
         $output = shell_exec("dig +short +time=3 +tries=1 @{$ns} {$escaped} {$typeStr} 2>/dev/null");
 
         if ($output === null) {
-            return $this->cache[$key] = false;
+            return false;
         }
 
         if (trim($output) === '') {
-            return $this->cache[$key] = [];
+            return [];
         }
 
         $lines = array_filter(array_map('trim', explode("\n", trim($output))));
@@ -85,6 +78,6 @@ class DigDnsResolver implements DnsResolver
             }
         }
 
-        return $this->cache[$key] = $records;
+        return $records;
     }
 }
