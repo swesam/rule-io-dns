@@ -23,6 +23,36 @@ it('exports TXT records with quoted values', function () {
     expect($output)->toBe("_dmarc.example.com.\t3600\tIN\tTXT\t\"v=DMARC1; p=none; rua=mailto:dmarc@rule.se\"\n");
 });
 
+it('escapes quotes and backslashes in TXT values', function () {
+    $records = [
+        new DnsRecord(type: 'TXT', name: 'test.example.com', value: 'v=spf1 "include:example.com" \\all', purpose: 'spf'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toBe("test.example.com.\t3600\tIN\tTXT\t\"v=spf1 \\\"include:example.com\\\" \\\\all\"\n");
+});
+
+it('exports MX records with trailing dots', function () {
+    $records = [
+        new DnsRecord(type: 'MX', name: 'example.com', value: 'mail.example.com', purpose: 'mx'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain("MX\tmail.example.com.");
+});
+
+it('exports NS records with trailing dots', function () {
+    $records = [
+        new DnsRecord(type: 'NS', name: 'example.com', value: 'ns1.cloudflare.com', purpose: 'ns'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain("NS\tns1.cloudflare.com.");
+});
+
 it('exports multiple records', function () {
     $records = [
         new DnsRecord(type: 'CNAME', name: 'rm.example.com', value: 'to.rulemailer.se', purpose: 'mx-spf'),
@@ -49,6 +79,17 @@ it('respects custom TTL', function () {
     expect($output)->toContain("\t300\t");
 });
 
+it('normalizes lowercase record types', function () {
+    $records = [
+        new DnsRecord(type: 'cname', name: 'rm.example.com', value: 'to.rulemailer.se', purpose: 'mx-spf'),
+    ];
+
+    $output = BindZoneExporter::export($records);
+
+    expect($output)->toContain('CNAME');
+    expect($output)->toContain('to.rulemailer.se.');
+});
+
 it('does not double trailing dots', function () {
     $records = [
         new DnsRecord(type: 'CNAME', name: 'rm.example.com.', value: 'to.rulemailer.se.', purpose: 'mx-spf'),
@@ -61,5 +102,5 @@ it('does not double trailing dots', function () {
 });
 
 it('returns empty string for empty records', function () {
-    expect(BindZoneExporter::export([]))->toBe("\n");
+    expect(BindZoneExporter::export([]))->toBe('');
 });
