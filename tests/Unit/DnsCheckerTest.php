@@ -541,7 +541,7 @@ describe('Cloudflare proxy detection', function () {
         expect($codes)->not->toContain('CLOUDFLARE_PROXY_ENABLED');
     });
 
-    it('does not warn when wildcard DNS record exists', function () {
+    it('warns even when wildcard DNS record exists on Cloudflare', function () {
         $resolver = mockResolver([
             'example.com' => [
                 DNS_NS => [['target' => 'ada.ns.cloudflare.com']],
@@ -559,7 +559,7 @@ describe('Cloudflare proxy detection', function () {
 
         $result = DnsChecker::check('example.com', $resolver);
         $codes = array_map(fn ($w) => $w->code, $result->warnings);
-        expect($codes)->not->toContain('CLOUDFLARE_PROXY_ENABLED');
+        expect($codes)->toContain('CLOUDFLARE_PROXY_ENABLED');
     });
 
     it('does not warn when CNAME checks pass (proxy not an issue)', function () {

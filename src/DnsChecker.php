@@ -295,11 +295,6 @@ class DnsChecker
             return;
         }
 
-        // Detect wildcard DNS — if a random subdomain resolves, A records are not meaningful
-        if (self::safeHasRecords($resolver, '_cf-proxy-check.' . $domain, DNS_A)) {
-            return;
-        }
-
         $cnameSubdomains = [];
         if ($mx->status !== DnsRecordStatus::Pass || $spf->status !== DnsRecordStatus::Pass) {
             $cnameSubdomains[] = $sendingDomain;
