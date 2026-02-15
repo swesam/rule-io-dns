@@ -506,6 +506,26 @@ describe('Cloudflare proxy detection', function () {
         expect($hasDkim)->toBeTrue();
     });
 
+    it('emits a single warning mentioning both subdomains when both are proxied', function () {
+        $resolver = mockResolver([
+            'example.com' => [
+                DNS_NS => [['target' => 'ada.ns.cloudflare.com']],
+            ],
+            'rm.example.com' => [
+                DNS_A => [['ip' => '104.21.0.1']],
+            ],
+            'keyse._domainkey.example.com' => [
+                DNS_A => [['ip' => '104.21.0.2']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $proxyWarnings = array_values(array_filter($result->warnings, fn ($w) => $w->code === 'CLOUDFLARE_PROXY_ENABLED'));
+        expect($proxyWarnings)->toHaveCount(1)
+            ->and($proxyWarnings[0]->message)->toContain('rm.example.com')
+            ->and($proxyWarnings[0]->message)->toContain('keyse._domainkey.example.com');
+    });
+
     it('does not warn for non-Cloudflare nameservers', function () {
         $resolver = mockResolver([
             'example.com' => [
