@@ -308,14 +308,22 @@ class DnsChecker
             $cnameSubdomains[] = $dkimDomain;
         }
 
+        $proxiedSubdomains = [];
         foreach ($cnameSubdomains as $subdomain) {
             if (self::safeHasRecords($resolver, $subdomain, DNS_A)) {
-                $warnings[] = new DnsWarning(
-                    code: 'CLOUDFLARE_PROXY_ENABLED',
-                    severity: Severity::Error,
-                    message: "A records found at {$subdomain} but no CNAME. If you've added a CNAME in Cloudflare, ensure the proxy is disabled (orange cloud → grey cloud) so the CNAME is visible to DNS lookups.",
-                );
+                $proxiedSubdomains[] = $subdomain;
             }
+        }
+
+        if (count($proxiedSubdomains) > 0) {
+            $subdomainList = implode(' and ', $proxiedSubdomains);
+            $warnings[] = new DnsWarning(
+                code: 'CLOUDFLARE_PROXY_ENABLED',
+                severity: Severity::Error,
+                message: "Cloudflare proxy is likely enabled for {$subdomainList}. "
+                    . 'In the Cloudflare dashboard, find the DNS record(s) and click the orange cloud icon to turn it grey (DNS only). '
+                    . 'The proxy rewrites CNAME records into A records, which breaks email delivery.',
+            );
         }
     }
 
