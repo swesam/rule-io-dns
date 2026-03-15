@@ -233,6 +233,18 @@ describe('SPF check', function () {
         expect($result->checks->spf->status->value)->toBe('pass');
     });
 
+    it('returns pass with uppercase V=SPF1 version token', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_TXT => [['txt' => 'V=SPF1 include:spf.rulemailer.se ~all']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->spf->status->value)->toBe('pass');
+    });
+
     it('returns pass with mixed-case include and trailing dot', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],

@@ -142,7 +142,7 @@ class DnsChecker
         $txtRecords = $resolver->getRecord($sendingDomain, DNS_TXT);
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
-            $spfRecords = array_values(array_filter($flat, fn ($r) => str_starts_with(trim($r), 'v=spf1')));
+            $spfRecords = array_values(array_filter($flat, fn ($r) => stripos(trim($r), 'v=spf1') === 0));
 
             // RFC 7208: multiple SPF records is invalid
             if (count($spfRecords) > 1) {
@@ -369,7 +369,7 @@ class DnsChecker
      */
     private static function isSpfSyntaxValid(string $record): bool
     {
-        if (!preg_match('/^v=spf1(\s|$)/', $record)) {
+        if (!preg_match('/^v=spf1(\s|$)/i', $record)) {
             return false;
         }
 
