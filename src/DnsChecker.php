@@ -149,14 +149,17 @@ class DnsChecker
                     break;
                 }
             }
-            if ($spfRecord !== null && str_contains($spfRecord, 'rulemailer')) {
-                return new DnsRecordCheck(
-                    status: DnsRecordStatus::Pass,
-                    expected: 'SPF including rulemailer',
-                    actual: $spfRecord,
-                );
-            }
             if ($spfRecord !== null) {
+                $hasRuleInclude = (bool) preg_match('/\s+include:\S*rulemailer/', $spfRecord);
+                $isValid = self::isSpfSyntaxValid($spfRecord);
+
+                if ($hasRuleInclude && $isValid) {
+                    return new DnsRecordCheck(
+                        status: DnsRecordStatus::Pass,
+                        expected: 'SPF including rulemailer',
+                        actual: $spfRecord,
+                    );
+                }
                 return new DnsRecordCheck(
                     status: DnsRecordStatus::Fail,
                     expected: 'SPF including rulemailer',
@@ -204,15 +207,24 @@ class DnsChecker
         $txtRecords = $resolver->getRecord($dmarcDomain, DNS_TXT);
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
-            foreach ($flat as $r) {
-                if (str_starts_with($r, 'v=DMARC1')) {
-                    return new DnsRecordCheck(
-                        status: DnsRecordStatus::Pass,
-                        expected: 'v=DMARC1',
-                        actual: $r,
-                        existing: $r,
-                    );
-                }
+            $dmarcRecords = array_values(array_filter($flat, fn ($r) => str_starts_with($r, 'v=DMARC1')));
+
+            // RFC 7489: multiple DMARC records is invalid
+            if (count($dmarcRecords) > 1) {
+                return new DnsRecordCheck(
+                    status: DnsRecordStatus::Fail,
+                    expected: 'v=DMARC1 (single record)',
+                    actual: $dmarcRecords,
+                );
+            }
+
+            if (count($dmarcRecords) === 1) {
+                return new DnsRecordCheck(
+                    status: DnsRecordStatus::Pass,
+                    expected: 'v=DMARC1',
+                    actual: $dmarcRecords[0],
+                    existing: $dmarcRecords[0],
+                );
             }
         }
 
@@ -326,6 +338,33 @@ class DnsChecker
     {
         $records = $resolver->getRecord($domain, $type);
         return $records !== false && count($records) > 0;
+    }
+
+    /**
+     * Basic SPF syntax validation — checks that all mechanisms are recognized.
+     */
+    private static function isSpfSyntaxValid(string $record): bool
+    {
+        if (!preg_match('/^v=spf1(\s|$)/', $record)) {
+            return false;
+        }
+
+        $terms = preg_split('/\s+/', $record);
+        array_shift($terms); // remove "v=spf1"
+
+        $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?|mx(:\S+)?(\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/';
+        $modifier = '/^(redirect|exp)=\S+$/';
+
+        foreach ($terms as $term) {
+            if ($term === '') {
+                continue;
+            }
+            if (!preg_match($mechanism, $term) && !preg_match($modifier, $term)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
