@@ -352,9 +352,9 @@ class DnsChecker
 
         foreach ($terms as $term) {
             // Strip optional qualifier (+, -, ~, ?)
-            $mechanism = ltrim($term, '+-~?');
+            $mechanism = strtolower(ltrim($term, '+-~?'));
             if (str_starts_with($mechanism, 'include:')) {
-                $domain = substr($mechanism, 8);
+                $domain = rtrim(substr($mechanism, 8), '.');
                 if ($domain === 'spf.rulemailer.se' || str_ends_with($domain, '.rulemailer.se')) {
                     return true;
                 }
@@ -376,8 +376,8 @@ class DnsChecker
         $terms = preg_split('/\s+/', $record);
         array_shift($terms); // remove "v=spf1"
 
-        $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?(\/\/\d+)?|mx(:\S+)?(\/\d+)?(\/\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/';
-        $modifier = '/^(redirect|exp)=\S+$/';
+        $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?(\/\/\d+)?|mx(:\S+)?(\/\d+)?(\/\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/i';
+        $modifier = '/^(redirect|exp)=\S+$/i';
 
         foreach ($terms as $term) {
             if ($term === '') {

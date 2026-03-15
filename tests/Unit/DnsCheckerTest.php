@@ -233,6 +233,30 @@ describe('SPF check', function () {
         expect($result->checks->spf->status->value)->toBe('pass');
     });
 
+    it('returns pass with mixed-case include and trailing dot', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_TXT => [['txt' => 'v=spf1 Include:SPF.RULEMAILER.SE. ~all']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->spf->status->value)->toBe('pass');
+    });
+
+    it('returns pass with mixed-case SPF mechanisms', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_TXT => [['txt' => 'v=spf1 MX Include:spf.rulemailer.se ~All']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->spf->status->value)->toBe('pass');
+    });
+
     it('returns missing when no CNAME or TXT found', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
