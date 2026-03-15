@@ -142,15 +142,20 @@ class DnsChecker
         $txtRecords = $resolver->getRecord($sendingDomain, DNS_TXT);
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
-            $spfRecord = null;
-            foreach ($flat as $r) {
-                if (str_starts_with($r, 'v=spf1')) {
-                    $spfRecord = $r;
-                    break;
-                }
+            $spfRecords = array_values(array_filter($flat, fn ($r) => str_starts_with(trim($r), 'v=spf1')));
+
+            // RFC 7208: multiple SPF records is invalid
+            if (count($spfRecords) > 1) {
+                return new DnsRecordCheck(
+                    status: DnsRecordStatus::Fail,
+                    expected: 'v=spf1 (single record)',
+                    actual: $spfRecords,
+                );
             }
-            if ($spfRecord !== null) {
-                $hasRuleInclude = (bool) preg_match('/\s+include:\S*rulemailer/', $spfRecord);
+
+            if (count($spfRecords) === 1) {
+                $spfRecord = trim($spfRecords[0]);
+                $hasRuleInclude = self::hasRulemailerInclude($spfRecord);
                 $isValid = self::isSpfSyntaxValid($spfRecord);
 
                 if ($hasRuleInclude && $isValid) {
@@ -207,6 +212,7 @@ class DnsChecker
         $txtRecords = $resolver->getRecord($dmarcDomain, DNS_TXT);
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
+            $flat = array_map('trim', $flat);
             $dmarcRecords = array_values(array_filter($flat, fn ($r) => str_starts_with($r, 'v=DMARC1')));
 
             // RFC 7489: multiple DMARC records is invalid
@@ -340,6 +346,24 @@ class DnsChecker
         return $records !== false && count($records) > 0;
     }
 
+    private static function hasRulemailerInclude(string $spfRecord): bool
+    {
+        $terms = preg_split('/\s+/', $spfRecord);
+
+        foreach ($terms as $term) {
+            // Strip optional qualifier (+, -, ~, ?)
+            $mechanism = ltrim($term, '+-~?');
+            if (str_starts_with($mechanism, 'include:')) {
+                $domain = substr($mechanism, 8);
+                if ($domain === 'spf.rulemailer.se' || str_ends_with($domain, '.rulemailer.se')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Basic SPF syntax validation — checks that all mechanisms are recognized.
      */
@@ -352,7 +376,7 @@ class DnsChecker
         $terms = preg_split('/\s+/', $record);
         array_shift($terms); // remove "v=spf1"
 
-        $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?|mx(:\S+)?(\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/';
+        $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?(\/\/\d+)?|mx(:\S+)?(\/\d+)?(\/\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/';
         $modifier = '/^(redirect|exp)=\S+$/';
 
         foreach ($terms as $term) {
