@@ -142,7 +142,7 @@ class DnsChecker
         $txtRecords = $resolver->getRecord($sendingDomain, DNS_TXT);
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
-            $spfRecords = array_values(array_filter($flat, fn ($r) => stripos(trim($r), 'v=spf1') === 0));
+            $spfRecords = array_values(array_filter($flat, fn ($r) => preg_match('/^v=spf1(\s|$)/i', trim($r)) === 1));
 
             // RFC 7208: multiple SPF records is invalid
             if (count($spfRecords) > 1) {
@@ -213,7 +213,7 @@ class DnsChecker
         if ($txtRecords !== false && count($txtRecords) > 0) {
             $flat = array_map(fn ($r) => $r['txt'], $txtRecords);
             $flat = array_map('trim', $flat);
-            $dmarcRecords = array_values(array_filter($flat, fn ($r) => str_starts_with($r, 'v=DMARC1')));
+            $dmarcRecords = array_values(array_filter($flat, fn ($r) => preg_match('/^v=DMARC1(\s*;|$)/i', $r) === 1));
 
             // RFC 7489: multiple DMARC records is invalid
             if (count($dmarcRecords) > 1) {
@@ -377,7 +377,7 @@ class DnsChecker
         array_shift($terms); // remove "v=spf1"
 
         $mechanism = '/^[+\-~?]?(all|include:\S+|a(:\S+)?(\/\d+)?(\/\/\d+)?|mx(:\S+)?(\/\d+)?(\/\/\d+)?|ip4:\S+|ip6:\S+|ptr(:\S+)?|exists:\S+)$/i';
-        $modifier = '/^(redirect|exp)=\S+$/i';
+        $modifier = '/^[a-z][a-z0-9_.-]*=\S+$/i';
 
         foreach ($terms as $term) {
             if ($term === '') {

@@ -169,7 +169,7 @@ describe('SPF check', function () {
         expect($result->checks->spf->status->value)->toBe('pass');
     });
 
-    it('returns fail when SPF has broken syntax (concatenated v=spf1include:)', function () {
+    it('returns missing when SPF has broken syntax (concatenated v=spf1include:)', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
             'rm.example.com' => [
@@ -178,7 +178,7 @@ describe('SPF check', function () {
         ]);
 
         $result = DnsChecker::check('example.com', $resolver);
-        expect($result->checks->spf->status->value)->toBe('fail');
+        expect($result->checks->spf->status->value)->toBe('missing');
     });
 
     it('returns fail when SPF contains invalid mechanisms', function () {
@@ -269,6 +269,30 @@ describe('SPF check', function () {
         expect($result->checks->spf->status->value)->toBe('pass');
     });
 
+    it('does not treat v=spf10 as an SPF record', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_TXT => [['txt' => 'v=spf10 include:spf.rulemailer.se ~all']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->spf->status->value)->toBe('missing');
+    });
+
+    it('returns pass with unknown SPF modifier extensions', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_TXT => [['txt' => 'v=spf1 include:spf.rulemailer.se foo=bar ~all']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->spf->status->value)->toBe('pass');
+    });
+
     it('returns missing when no CNAME or TXT found', function () {
         $resolver = mockResolver([
             'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
@@ -347,6 +371,18 @@ describe('DMARC check', function () {
         $result = DnsChecker::check('example.com', $resolver);
         expect($result->checks->dmarc->status->value)->toBe('fail')
             ->and($result->checks->dmarc->expected)->toBe('v=DMARC1 (single record)');
+    });
+
+    it('does not treat v=DMARC10 as a DMARC record', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            '_dmarc.example.com' => [
+                DNS_TXT => [['txt' => 'v=DMARC10; p=none']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->dmarc->status->value)->toBe('missing');
     });
 
     it('handles DMARC record with leading whitespace', function () {
