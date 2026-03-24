@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNS Checker – Rule</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #eef1f8;
+      min-height: 100vh;
+      color: #1e2240;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 20px 16px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e2240;
+      text-decoration: none;
+    }
+    .logo svg { flex-shrink: 0; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 24px 16px 32px;
+    }
+    .hero h1 {
+      font-size: clamp(22px, 6vw, 32px);
+      font-weight: 700;
+      color: #1e2240;
+      margin-bottom: 8px;
+    }
+    .hero p {
+      font-size: 14px;
+      color: #5a6080;
+      max-width: 360px;
+      margin: 0 auto 24px;
+      line-height: 1.5;
+    }
+
+    /* ── Search ── */
+    .search-form {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 6px 6px 14px;
+      max-width: 520px;
+      margin: 0 auto;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .search-icon {
+      color: #aab0c4;
+      flex-shrink: 0;
+      margin-right: 8px;
+    }
+    .search-form input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      color: #1e2240;
+      background: transparent;
+      min-width: 0;
+    }
+    .search-form input::placeholder { color: #aab0c4; }
+    .btn-check {
+      flex-shrink: 0;
+      background: #3fcba0;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 22px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-check:hover { background: #2fb990; }
+
+    /* ── Content ── */
+    .content {
+      padding: 0 16px 48px;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── DNS Results card ── */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: #1e2240;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: #f4f6fb;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .check-row:last-child { margin-bottom: 0; }
+    .record-type {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e2240;
+      min-width: 46px;
+      flex-shrink: 0;
+      padding-top: 1px;
+    }
+    .record-value {
+      flex: 1;
+      font-size: 13px;
+      color: #5a6080;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+    .badge {
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 3px 10px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      align-self: flex-start;
+    }
+    .badge-pass    { background: #d4f5e9; color: #1a9e6c; }
+    .badge-missing { background: #fef3c7; color: #b45309; }
+    .badge-fail    { background: #fee2e2; color: #b91c1c; }
+
+    /* ── Warning box ── */
+    .warning-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #92400e;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    /* ── Required records table ── */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -20px;
+      padding: 0 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 400px;
+    }
+    thead th {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: #8890aa;
+      padding: 0 8px 10px;
+      text-align: left;
+    }
+    thead th:first-child { padding-left: 0; }
+    tbody tr { border-top: 1px solid #f0f2f8; }
+    tbody td {
+      padding: 10px 8px;
+      font-size: 13px;
+      color: #1e2240;
+      vertical-align: top;
+    }
+    tbody td:first-child { padding-left: 0; }
+    .td-value {
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      color: #5a6080;
+    }
+    .td-type {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .td-name { white-space: nowrap; }
+
+    /* ── Hidden initially ── */
+    #results { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">
+    <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="40" height="40" rx="8" fill="#3fcba0" fill-opacity=".15"/>
+      <path d="M10 10h12a8 8 0 0 1 0 16h-4l8 10H20l-8-10h2a4 4 0 0 0 0-8H14v18H10V10Z" fill="#3fcba0"/>
+    </svg>
+    RULE
+  </a>
+</header>
+
+<div class="hero">
+  <h1>DNS Checker</h1>
+  <p>Verify and set up DNS records for sending email through Rule</p>
+
+  <form class="search-form" id="search-form" onsubmit="checkDomain(event)">
+    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input
+      type="text"
+      id="domain-input"
+      placeholder="Enter domain (e.g. example.com)"
+      autocomplete="off"
+      autocapitalize="none"
+      spellcheck="false"
+    />
+    <button type="submit" class="btn-check">Check</button>
+  </form>
+</div>
+
+<div class="content" id="results">
+
+  <div class="card" id="check-results-card">
+    <div class="card-title">DNS Check Results</div>
+
+    <div class="check-row">
+      <span class="record-type">NS</span>
+      <span class="record-value" id="ns-value"></span>
+      <span class="badge" id="ns-badge"></span>
+    </div>
+    <div class="check-row">
+      <span class="record-type">MX</span>
+      <span class="record-value" id="mx-value"></span>
+      <span class="badge" id="mx-badge"></span>
+    </div>
+    <div class="check-row">
+      <span class="record-type">SPF</span>
+      <span class="record-value" id="spf-value"></span>
+      <span class="badge" id="spf-badge"></span>
+    </div>
+    <div class="check-row">
+      <span class="record-type">DKIM</span>
+      <span class="record-value" id="dkim-value"></span>
+      <span class="badge" id="dkim-badge"></span>
+    </div>
+    <div class="check-row">
+      <span class="record-type">DMARC</span>
+      <span class="record-value" id="dmarc-value"></span>
+      <span class="badge" id="dmarc-badge"></span>
+    </div>
+  </div>
+
+  <div class="warning-box" id="warnings" style="display:none"></div>
+
+  <div class="card" id="required-records-card" style="display:none">
+    <div class="card-title">Required DNS Records</div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Name</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody id="records-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  async function checkDomain(e) {
+    e.preventDefault();
+    const domain = document.getElementById('domain-input').value.trim();
+    if (!domain) return;
+
+    // Reveal results section
+    document.getElementById('results').style.display = 'block';
+
+    try {
+      const res = await fetch(`/api/check?domain=${encodeURIComponent(domain)}`);
+      const data = await res.json();
+      renderResults(data);
+    } catch {
+      // Demo / fallback rendering when no API is available
+      renderDemo(domain);
+    }
+  }
+
+  function setBadge(id, status) {
+    const el = document.getElementById(id);
+    const map = {
+      pass:    ['badge-pass',    'PASS'],
+      missing: ['badge-missing', 'MISSING'],
+      fail:    ['badge-fail',    'FAIL'],
+    };
+    const [cls, label] = map[status] ?? map.missing;
+    el.className = `badge ${cls}`;
+    el.textContent = label;
+  }
+
+  function renderResults(data) {
+    const checks = data.checks ?? {};
+
+    const setRow = (type, check) => {
+      const val = (check.actual ?? []).join(', ');
+      document.getElementById(`${type}-value`).textContent = val;
+      setBadge(`${type}-badge`, check.status ?? 'missing');
+    };
+
+    setRow('ns',    checks.ns    ?? {});
+    setRow('mx',    checks.mx    ?? {});
+    setRow('spf',   checks.spf   ?? {});
+    setRow('dkim',  checks.dkim  ?? {});
+    setRow('dmarc', checks.dmarc ?? {});
+
+    // Warnings
+    const warningBox = document.getElementById('warnings');
+    if (data.warnings && data.warnings.length) {
+      warningBox.textContent = data.warnings.map(w => w.message).join(' ');
+      warningBox.style.display = 'block';
+    } else {
+      warningBox.style.display = 'none';
+    }
+
+    // Required records
+    const tbody = document.getElementById('records-body');
+    tbody.innerHTML = '';
+    if (data.requiredRecords && data.requiredRecords.length) {
+      data.requiredRecords.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="td-type">${esc(r.type)}</td>
+          <td class="td-name">${esc(r.name)}</td>
+          <td class="td-value">${esc(r.value)}</td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById('required-records-card').style.display = 'block';
+    }
+  }
+
+  function renderDemo(domain) {
+    document.getElementById('ns-value').textContent = 'hera.ns.cloudflare.com, elliott.ns.cloudflare.com';
+    setBadge('ns-badge', 'pass');
+    document.getElementById('mx-value').textContent = '';
+    setBadge('mx-badge', 'missing');
+    document.getElementById('spf-value').textContent = '';
+    setBadge('spf-badge', 'missing');
+    document.getElementById('dkim-value').textContent = '';
+    setBadge('dkim-badge', 'missing');
+    document.getElementById('dmarc-value').textContent = 'v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s';
+    setBadge('dmarc-badge', 'pass');
+
+    const warningBox = document.getElementById('warnings');
+    warningBox.textContent =
+      `Existing DMARC policy uses strict SPF alignment (aspf=s). SPF alignment will fail for subdomain sending from rm.${domain}. DKIM alignment must pass for emails to be delivered.`;
+    warningBox.style.display = 'block';
+
+    const tbody = document.getElementById('records-body');
+    tbody.innerHTML = `
+      <tr>
+        <td class="td-type">CNAME</td>
+        <td class="td-name">rm.${domain}</td>
+        <td class="td-value">to.rulemailer.se.</td>
+      </tr>
+      <tr>
+        <td class="td-type">CNAME</td>
+        <td class="td-name">rule._domainkey.${domain}</td>
+        <td class="td-value">rule.domainkey.rulemailer.se.</td>
+      </tr>
+      <tr>
+        <td class="td-type">TXT</td>
+        <td class="td-name">_dmarc.${domain}</td>
+        <td class="td-value">v=DMARC1; p=none;</td>
+      </tr>`;
+    document.getElementById('required-records-card').style.display = 'block';
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
