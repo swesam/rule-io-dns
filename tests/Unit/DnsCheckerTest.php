@@ -433,7 +433,20 @@ describe('DMARC check', function () {
 
         $result = DnsChecker::check('example.com', $resolver);
         expect($result->checks->dmarc->status->value)->toBe('fail')
-            ->and($result->checks->dmarc->expected)->toBe('v=DMARC1; p=none|quarantine|reject');
+            ->and($result->checks->dmarc->expected)->toBe('v=DMARC1; p=none|quarantine|reject')
+            ->and($result->checks->dmarc->actual)->toBe('v=DMARC1; p=foobar');
+    });
+
+    it('passes DMARC record with uppercase tags', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            '_dmarc.example.com' => [
+                DNS_TXT => [['txt' => 'V=DMARC1; P=none']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->dmarc->status->value)->toBe('pass');
     });
 });
 

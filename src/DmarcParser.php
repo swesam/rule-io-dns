@@ -17,7 +17,7 @@ class DmarcParser
     public static function parse(string $raw): ?DmarcRecord
     {
         $trimmed = trim($raw);
-        if (!str_starts_with($trimmed, 'v=DMARC1')) {
+        if (strncasecmp($trimmed, 'v=DMARC1', 8) !== 0) {
             return null;
         }
 
