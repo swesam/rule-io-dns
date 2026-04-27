@@ -238,7 +238,7 @@ class DnsChecker
 
                 return new DnsRecordCheck(
                     status: DnsRecordStatus::Pass,
-                    expected: 'v=DMARC1',
+                    expected: 'v=DMARC1; p=none|quarantine|reject',
                     actual: $raw,
                     existing: $raw,
                 );
@@ -247,7 +247,7 @@ class DnsChecker
 
         return new DnsRecordCheck(
             status: DnsRecordStatus::Missing,
-            expected: 'v=DMARC1',
+            expected: 'v=DMARC1; p=none|quarantine|reject',
         );
     }
 
