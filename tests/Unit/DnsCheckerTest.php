@@ -408,6 +408,33 @@ describe('DMARC check', function () {
         $result = DnsChecker::check('example.com', $resolver);
         expect($result->checks->dmarc->status->value)->toBe('missing');
     });
+
+    it('returns fail when DMARC record is missing the required p tag', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            '_dmarc.example.com' => [
+                DNS_TXT => [['txt' => 'v=DMARC1']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->dmarc->status->value)->toBe('fail')
+            ->and($result->checks->dmarc->expected)->toBe('v=DMARC1; p=none|quarantine|reject')
+            ->and($result->checks->dmarc->actual)->toBe('v=DMARC1');
+    });
+
+    it('returns fail when DMARC record has an invalid p value', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            '_dmarc.example.com' => [
+                DNS_TXT => [['txt' => 'v=DMARC1; p=foobar']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        expect($result->checks->dmarc->status->value)->toBe('fail')
+            ->and($result->checks->dmarc->expected)->toBe('v=DMARC1; p=none|quarantine|reject');
+    });
 });
 
 it('allPassed is false when any check fails', function () {
