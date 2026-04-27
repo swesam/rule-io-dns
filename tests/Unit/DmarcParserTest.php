@@ -104,6 +104,16 @@ it('handles case-insensitive policy values', function () {
         ->and(DmarcParser::parse('v=DMARC1; p=NONE')->p)->toBe('none');
 });
 
+it('handles case-insensitive version prefix', function () {
+    expect(DmarcParser::parse('V=DMARC1; P=none')->p)->toBe('none')
+        ->and(DmarcParser::parse('v=dmarc1; p=reject')->p)->toBe('reject');
+});
+
+it('rejects records that only start with v=DMARC1 without a boundary', function () {
+    expect(DmarcParser::parse('v=DMARC10; p=none'))->toBeNull()
+        ->and(DmarcParser::parse('v=DMARC1foo; p=reject'))->toBeNull();
+});
+
 it('handles case-insensitive sp values', function () {
     $result = DmarcParser::parse('v=DMARC1; p=none; sp=REJECT');
     expect($result->sp)->toBe('reject');

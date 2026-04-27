@@ -225,18 +225,29 @@ class DnsChecker
             }
 
             if (count($dmarcRecords) === 1) {
+                $raw = $dmarcRecords[0];
+
+                // RFC 7489: a DMARC record must include a valid p= tag
+                if (DmarcParser::parse($raw) === null) {
+                    return new DnsRecordCheck(
+                        status: DnsRecordStatus::Fail,
+                        expected: 'v=DMARC1; p=none|quarantine|reject',
+                        actual: $raw,
+                    );
+                }
+
                 return new DnsRecordCheck(
                     status: DnsRecordStatus::Pass,
-                    expected: 'v=DMARC1',
-                    actual: $dmarcRecords[0],
-                    existing: $dmarcRecords[0],
+                    expected: 'v=DMARC1; p=none|quarantine|reject',
+                    actual: $raw,
+                    existing: $raw,
                 );
             }
         }
 
         return new DnsRecordCheck(
             status: DnsRecordStatus::Missing,
-            expected: 'v=DMARC1',
+            expected: 'v=DMARC1; p=none|quarantine|reject',
         );
     }
 
