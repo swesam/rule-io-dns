@@ -37,7 +37,9 @@ class DnsChecker
         $dkim = self::checkDkim($resolver, $dkimDomain);
         $dmarc = self::checkDmarc($resolver, $dmarcDomain);
 
-        self::detectCnameConflict($resolver, $sendingDomain, $warnings);
+        if ($mx->status !== DnsRecordStatus::Pass || $spf->status !== DnsRecordStatus::Pass) {
+            self::detectCnameConflict($resolver, $sendingDomain, $warnings);
+        }
         self::detectDkimConflict($resolver, $dkimDomain, $warnings);
         self::detectCloudflareProxy($ns, $resolver, $domain, $sendingDomain, $dkimDomain, $mx, $spf, $dkim, $warnings);
         self::analyzeDmarc($dmarc, $sendingDomain, $warnings);

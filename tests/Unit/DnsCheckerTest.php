@@ -533,6 +533,20 @@ describe('CNAME conflict detection', function () {
         $codes = array_map(fn ($w) => $w->code, $result->warnings);
         expect($codes)->not->toContain('CNAME_CONFLICT_MX_SPF');
     });
+
+    it('does not warn when MX and SPF both pass via direct records', function () {
+        $resolver = mockResolver([
+            'example.com' => [DNS_NS => [['target' => 'ns1.dns.com']]],
+            'rm.example.com' => [
+                DNS_MX => [['target' => Constants::RULE_MX_HOST, 'pri' => 10]],
+                DNS_TXT => [['txt' => 'v=spf1 include:_spf.rulemailer.se ~all']],
+            ],
+        ]);
+
+        $result = DnsChecker::check('example.com', $resolver);
+        $codes = array_map(fn ($w) => $w->code, $result->warnings);
+        expect($codes)->not->toContain('CNAME_CONFLICT_MX_SPF');
+    });
 });
 
 describe('DKIM conflict detection', function () {
