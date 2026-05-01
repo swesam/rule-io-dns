@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Fixed
+
+- Suppress `CNAME_CONFLICT_MX_SPF` warning when MX and SPF both pass. A customer with a working direct-record setup does not need to switch to the CNAME approach, so the "existing records must be removed before adding the CNAME" warning was a false positive in that case.
+
 ## [1.0.0] - 2026-02-14
 
 ### Added
